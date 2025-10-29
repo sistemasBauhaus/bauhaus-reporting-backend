@@ -51,7 +51,7 @@ if (process.env.NODE_ENV === 'production') {
   app.get('/:any*', (req, res) => {
     res.sendFile(path.join(buildPath, 'index.html'));
   });
-  app.get('/:any*', (req, res) => {
+  app.get(/^\/(?!api).*/, (req, res) => {
     res.sendFile(path.join(buildPath, 'index.html'));
   });
 }
