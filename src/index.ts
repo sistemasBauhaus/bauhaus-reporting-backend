@@ -6,6 +6,8 @@ import reportesRoutes from './routes/reportes.routes';
 import cierresRoutes from './routes/cierres.routes'; // 👈 AGREGA ESTA LÍNEA
 import cors from 'cors';
 
+import path from 'path';
+
 dotenv.config();
 
 const app = express();
@@ -30,12 +32,23 @@ app.use(cors({
 
 app.use(express.json());
 
-// 👇 Montá el router de cierres
+
+// Montar rutas de API primero
 app.use('/api', cierresRoutes); 
 app.use('/api', loginRouter);
 app.use('/api', pcMensualRoutes);
 app.use('/api', reportesRoutes);
 
+// Endpoint de prueba para la raíz
 app.get('/', (_req, res) => {
   res.send('🚀 Backend Bauhaus Reporting corriendo correctamente');
 });
+
+// --- SOLO PARA PRODUCCIÓN: servir frontend React ---
+if (process.env.NODE_ENV === 'production') {
+  const buildPath = path.join(__dirname, '../build');
+  app.use(express.static(buildPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(buildPath, 'index.html'));
+  });
+}
