@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import loginRouter from './routes/login.routes';
 import pcMensualRoutes from './routes/pcMensual.routes';
+import reportesRoutes from './routes/reportes.routes';
 import cors from 'cors';
 
 dotenv.config();
@@ -31,6 +32,7 @@ app.use(express.json());
 // Rutas
 app.use('/api', loginRouter);
 app.use('/api', pcMensualRoutes);
+app.use('/api', reportesRoutes);
 
 // Endpoint base (útil para testear si el deploy está bien)
 app.get('/', (_req, res) => {
