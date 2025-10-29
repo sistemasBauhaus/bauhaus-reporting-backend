@@ -1,8 +1,9 @@
 import express from "express";
-import { getReporteMensual } from "../controllers/reportes.controller";
+import { getReporteMensual, getReporteSubdiario } from "../controllers/reportes.controller";
 
 const router = express.Router();
 
-router.get("/reportes/mensual", getReporteMensual);
+
+router.get("/reportes/subdiario", getReporteSubdiario);
 
 export default router;

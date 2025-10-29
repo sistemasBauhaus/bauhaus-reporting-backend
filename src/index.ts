@@ -48,8 +48,7 @@ app.get('/', (_req, res) => {
 if (process.env.NODE_ENV === 'production') {
   const buildPath = path.join(__dirname, '../build');
   app.use(express.static(buildPath));
-
-  // Captura cualquier ruta que NO empiece con /api
+  // Catch-all: cualquier ruta que NO sea /api, servir index.html
   app.get(/^\/(?!api).*/, (req, res) => {
     res.sendFile(path.join(buildPath, 'index.html'));
   });

@@ -1,3 +1,30 @@
+// Subdiario: una fila por día, columnas fijas por producto/categoría
+export const getReporteSubdiario = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fechaInicio, fechaFin } = req.query;
+
+    const query = `
+      SELECT
+        m.fecha::date,
+        d.categoria,
+        d.nombre,
+        SUM(m.cantidad) AS litros,
+        SUM(m.importe) AS importe
+      FROM datos_metricas m
+      JOIN dim_producto d USING (producto_id)
+      WHERE ($1::date IS NULL OR m.fecha >= $1::date)
+        AND ($2::date IS NULL OR m.fecha <= $2::date)
+      GROUP BY m.fecha::date, d.categoria, d.nombre
+      ORDER BY m.fecha::date, d.categoria;
+    `;
+
+    const { rows } = await pool.query(query, [fechaInicio || null, fechaFin || null]);
+    res.status(200).json({ ok: true, data: rows });
+  } catch (error) {
+    console.error("❌ Error en reporte subdiario:", (error as Error).message);
+    res.status(500).json({ error: "Error al obtener reporte subdiario" });
+  }
+};
 import { Request, Response } from "express";
 import { pool } from "../db/connection";
 
