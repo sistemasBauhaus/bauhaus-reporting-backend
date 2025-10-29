@@ -1,3 +1,37 @@
+// ✅ 4. Sincronizar automáticamente desde la última fecha de cierre hasta hoy
+export const syncCierresToDBAuto = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Buscar la última fecha cargada
+    const result = await pool.query('SELECT MAX(fecha) as max_fecha FROM datos_metricas');
+    let fechaInicio: string;
+    if (result.rows[0].max_fecha) {
+      // Sumar un día a la última fecha encontrada
+      const lastDate = new Date(result.rows[0].max_fecha);
+      lastDate.setDate(lastDate.getDate() + 1);
+      const iso = lastDate.toISOString();
+      const fechaSolo = iso.split('T');
+      fechaInicio = typeof fechaSolo[0] === 'string' ? fechaSolo[0] : '2023-01-01';
+    } else {
+      // Si no hay datos, usar una fecha de inicio por defecto
+      fechaInicio = '2023-01-01';
+    }
+    // Fecha de fin: hoy
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const fechaFin = `${yyyy}-${mm}-${dd}`;
+
+    // Llamar a la función de sincronización existente
+    req.query.fechaInicio = fechaInicio;
+    req.query.fechaFin = fechaFin;
+    // @ts-ignore
+    await syncCierresToDB(req, res);
+  } catch (error) {
+    console.error('❌ Error en syncCierresToDBAuto:', (error as Error).message);
+    res.status(500).json({ error: 'Error en la sincronización automática de cierres' });
+  }
+};
 import fetch from "node-fetch";
 import { parseStringPromise } from "xml2js";
 import dotenv from "dotenv";
@@ -75,73 +109,134 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
 
     const idEstacion = 1;
     const idCaja = 2;
-    const fecha = "2025-10-21";
+    const { fechaInicio, fechaFin } = req.query;
 
-    const urlCierres = `${BASE_URL}/Cierres/GetUltimosCierresTurno?idEstacion=${idEstacion}&idCaja=${idCaja}&fecha=${fecha}`;
-    const responseCierres = await fetch(urlCierres, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${TOKEN}` },
-    });
+    if (!fechaInicio || !fechaFin) {
+      res.status(400).json({ error: "Debes enviar fechaInicio y fechaFin en el query string" });
+      return;
+    }
 
-    const xmlCierres = await responseCierres.text();
-    const jsonCierres = await parseStringPromise(xmlCierres, { explicitArray: false });
-    const cierres = jsonCierres.ArrayOfCierreTurno.CierreTurno;
-    const lista: CierreTurno[] = Array.isArray(cierres) ? cierres : [cierres];
+    // 📅 Generar todas las fechas entre inicio y fin
+    const fechas: string[] = [];
+    const fechaInicioStr = String(fechaInicio);
+    const fechaFinStr = String(fechaFin);
+    let d = new Date(fechaInicioStr);
+    const fin = new Date(fechaFinStr);
 
-    console.log(`📦 ${lista.length} cierres encontrados`);
+    while (d <= fin) {
+      if (d instanceof Date && !isNaN(d.getTime())) {
+        const iso: string = d.toISOString();
+        if (iso) {
+          const fechaSolo = iso.split("T");
+          const fechaStr = fechaSolo[0];
+          if (typeof fechaStr === 'string') {
+            fechas.push(fechaStr);
+          } else {
+            console.warn(`⚠️ No se pudo extraer la fecha de ISOString: ${iso}`);
+          }
+        } else {
+          console.warn(`⚠️ No se pudo convertir la fecha a ISOString: ${d}`);
+        }
+      } else {
+        console.warn(`⚠️ Fecha inválida detectada: ${d}`);
+      }
+      d.setDate(d.getDate() + 1);
+    }
 
-    for (const cierre of lista) {
-      const fechaHora = cierre.Fecha;
-      const urlDetalle = `${BASE_URL}/Cierres/GetInformacionCierreTurno?idEstacion=${idEstacion}&idCaja=${idCaja}&fechaHoraCierre=${fechaHora}`;
-      const responseDetalle = await fetch(urlDetalle, {
-        method: "GET",
+    let totalCierres = 0;
+    const totalDias = fechas.length;
+
+    console.log(`📆 Descargando cierres desde ${fechas[0]} hasta ${fechas[fechas.length - 1]}`);
+    console.log(`📊 Total de días a procesar: ${totalDias}`);
+
+    for (let i = 0; i < totalDias; i++) {
+      const fecha = fechas[i];
+      const progreso = ((i + 1) / totalDias * 100).toFixed(1);
+      console.log(`📅 (${i + 1}/${totalDias}) Procesando ${fecha} — Progreso: ${progreso}%`);
+
+      const urlCierres = `${BASE_URL}/Cierres/GetUltimosCierresTurno?idEstacion=${idEstacion}&idCaja=${idCaja}&fecha=${fecha}`;
+      const respCierres = await fetch(urlCierres, {
         headers: { Authorization: `Bearer ${TOKEN}` },
       });
 
-      const xmlDetalle = await responseDetalle.text();
-      const jsonDetalle = await parseStringPromise(xmlDetalle, { explicitArray: false });
-      const info = jsonDetalle.InformacionCierreTurno;
+      const xml = await respCierres.text();
+      const json = await parseStringPromise(xml, { explicitArray: false });
 
-      const totalImporte = Number(info?.ImporteVentasTotalesContado || 0);
-      const totalLitros = Number(info?.TotalLitrosDespachados || 0);
-      const totalEfectivo = Number(info?.TotalEfectivoRecaudado || 0);
-
-      // 🧠 Mapear según tipo de caja
-      let productoId = 1;
-      let deptoId = 1;
-
-      const caja = cierre.Caja?.toUpperCase() || "";
-      if (caja.includes("PLAYA")) {
-        deptoId = 1; // Playa
-        productoId = 4; // Nafta Súper
-      } else if (caja.includes("SHOP")) {
-        deptoId = 2; // Shop
-        productoId = 8; // Golosinas
-      } else if (caja.includes("LUBRIC")) {
-        deptoId = 3; // Lubricantes
-        productoId = 7; // Aceite Lubricante
+      const cierres = json?.ArrayOfCierreTurno?.CierreTurno;
+      if (!cierres) {
+        console.log(`⚠️ No hay cierres para ${fecha}`);
+        continue;
       }
 
-      console.log(`💾 Guardando cierre ${cierre.IdCierreTurno} - Caja: ${caja}, Producto: ${productoId}`);
+      const lista = Array.isArray(cierres) ? cierres : [cierres];
+      totalCierres += lista.length;
 
-      await pool.query(
-        `INSERT INTO datos_metricas (fecha, empresa_id, depto_id, producto_id, cantidad, importe)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          new Date(fechaHora),
-          1, // empresa Bauhaus
-          deptoId,
-          productoId,
-          totalLitros,
-          totalImporte || totalEfectivo,
-        ]
-      );
+      for (const cierre of lista) {
+        const fechaHora: string | undefined = cierre.Fecha;
+        if (!fechaHora) {
+          console.warn(`⚠️ Cierre ${cierre.IdCierreTurno} sin fecha. Se omite.`);
+          continue;
+        }
+
+        const urlDetalle = `${BASE_URL}/Cierres/GetInformacionCierreTurno?idEstacion=${idEstacion}&idCaja=${idCaja}&fechaHoraCierre=${fechaHora}`;
+
+        const respDetalle = await fetch(urlDetalle, {
+          headers: { Authorization: `Bearer ${TOKEN}` },
+        });
+
+        const xmlDetalle = await respDetalle.text();
+        const jsonDetalle = await parseStringPromise(xmlDetalle, { explicitArray: false });
+        const info = jsonDetalle?.InformacionCierreTurno || {};
+
+        const totalImporte = Number(info?.ImporteVentasTotalesContado || 0);
+        const totalLitros = Number(info?.TotalLitrosDespachados || 0);
+        const totalEfectivo = Number(info?.TotalEfectivoRecaudado || 0);
+
+        // 🧠 Mapear según tipo de caja
+        let productoId = 1;
+        let deptoId = 1;
+
+        const caja = cierre.Caja?.toUpperCase() || "";
+        if (caja.includes("PLAYA")) {
+          deptoId = 1;
+          productoId = 4;
+        } else if (caja.includes("SHOP")) {
+          deptoId = 2;
+          productoId = 8;
+        } else if (caja.includes("LUBRIC")) {
+          deptoId = 3;
+          productoId = 7;
+        }
+
+        await pool.query(
+          `INSERT INTO datos_metricas (fecha, empresa_id, depto_id, producto_id, cantidad, importe)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            new Date(fechaHora), // ✅ TypeScript ya sabe que es string
+            1,
+            deptoId,
+            productoId,
+            totalLitros,
+            totalImporte || totalEfectivo,
+          ]
+        );
+
+        console.log(`💾 Guardado cierre ${cierre.IdCierreTurno} (${caja})`);
+      }
     }
 
-    res.status(200).json({ ok: true, message: "Sincronización completada correctamente" });
+    console.log(`✅ Sincronización completada: ${totalCierres} cierres cargados`);
+    res.status(200).json({
+      ok: true,
+      message: "✅ Sincronización completada correctamente",
+      totalCierres,
+      rango: { desde: fechaInicio, hasta: fechaFin },
+    });
   } catch (error) {
     console.error("❌ Error al sincronizar:", (error as Error).message);
     res.status(500).json({ error: "Error al sincronizar cierres" });
   }
 };
+
+
 
