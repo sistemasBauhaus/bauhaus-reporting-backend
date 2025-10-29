@@ -21,7 +21,8 @@ app.use(cors({
     'https://bauhaus-reporting-evp6.vercel.app',
     'https://bauhaus-reporting-l3ai.vercel.app',
     'https://bauhaus-reporting.vercel.app',
-    'https://bauhaus-reporting-6t7b.vercel.app/'
+    'https://bauhaus-reporting-6t7b.vercel.app/',
+    'https://bauhaus-reporting-frontend.vercel.app' 
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
