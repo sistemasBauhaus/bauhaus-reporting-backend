@@ -1,6 +1,5 @@
 // Subdiario: una fila por día, columnas fijas por producto/categoría
 export const getReporteSubdiario = async (req: Request, res: Response): Promise<void> => {
-  console.log('🔎 getReporteSubdiario params:', { fechaInicio: req.query.fechaInicio, fechaFin: req.query.fechaFin });
   try {
     const { fechaInicio, fechaFin } = req.query;
 
@@ -24,8 +23,7 @@ export const getReporteSubdiario = async (req: Request, res: Response): Promise<
     `;
 
     const { rows } = await pool.query(query, [fechaInicio || null, fechaFin || null]);
-  console.log('📤 getReporteSubdiario filas:', rows.length);
-  res.status(200).json({ ok: true, data: rows });
+    res.status(200).json({ ok: true, data: rows });
   } catch (error) {
     console.error("❌ Error en reporte subdiario:", (error as Error).message);
     res.status(500).json({ error: "Error al obtener reporte subdiario" });
@@ -35,7 +33,6 @@ import { Request, Response } from "express";
 import { pool } from "../db/connection";
 
 export const getReporteMensual = async (req: Request, res: Response): Promise<void> => {
-  console.log('🔎 getReporteMensual params:', { fechaInicio: req.query.fechaInicio, fechaFin: req.query.fechaFin });
   try {
     let { fechaInicio, fechaFin } = req.query;
     // Si no se pasan fechas, usar el mes en curso
@@ -98,7 +95,7 @@ export const getReporteMensual = async (req: Request, res: Response): Promise<vo
         (fila.shop_importe || 0),
     }));
 
-  console.log('📤 getReporteMensual filas:', data.length);
+    console.log('📤 Respuesta enviada:', data);
     res.status(200).json({ ok: true, data });
   } catch (error) {
     console.error("❌ Error al obtener reporte mensual:", (error as Error).message);
