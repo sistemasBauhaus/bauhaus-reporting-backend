@@ -1,11 +1,16 @@
 // Subdiario: una fila por día, columnas fijas por producto/categoría
 export const getReporteSubdiario = async (req: Request, res: Response): Promise<void> => {
+  console.log('🔎 getReporteSubdiario params:', { fechaInicio: req.query.fechaInicio, fechaFin: req.query.fechaFin });
   try {
     const { fechaInicio, fechaFin } = req.query;
 
     const query = `
       SELECT
         m.fecha::date,
+        m.estacion_id,
+        m.nombre_estacion,
+        m.caja_id,
+        m.nombre_caja,
         d.categoria,
         d.nombre,
         SUM(m.cantidad) AS litros,
@@ -14,12 +19,13 @@ export const getReporteSubdiario = async (req: Request, res: Response): Promise<
       JOIN dim_producto d USING (producto_id)
       WHERE ($1::date IS NULL OR m.fecha >= $1::date)
         AND ($2::date IS NULL OR m.fecha <= $2::date)
-      GROUP BY m.fecha::date, d.categoria, d.nombre
-      ORDER BY m.fecha::date, d.categoria;
+      GROUP BY m.fecha::date, m.estacion_id, m.nombre_estacion, m.caja_id, m.nombre_caja, d.categoria, d.nombre
+      ORDER BY m.fecha::date, m.estacion_id, m.caja_id, d.categoria;
     `;
 
     const { rows } = await pool.query(query, [fechaInicio || null, fechaFin || null]);
-    res.status(200).json({ ok: true, data: rows });
+  console.log('📤 getReporteSubdiario filas:', rows.length);
+  res.status(200).json({ ok: true, data: rows });
   } catch (error) {
     console.error("❌ Error en reporte subdiario:", (error as Error).message);
     res.status(500).json({ error: "Error al obtener reporte subdiario" });
@@ -29,6 +35,7 @@ import { Request, Response } from "express";
 import { pool } from "../db/connection";
 
 export const getReporteMensual = async (req: Request, res: Response): Promise<void> => {
+  console.log('🔎 getReporteMensual params:', { fechaInicio: req.query.fechaInicio, fechaFin: req.query.fechaFin });
   try {
     let { fechaInicio, fechaFin } = req.query;
     // Si no se pasan fechas, usar el mes en curso
@@ -48,6 +55,10 @@ export const getReporteMensual = async (req: Request, res: Response): Promise<vo
     const query = `
       SELECT
         m.fecha::date AS fecha,
+        m.estacion_id,
+        m.nombre_estacion,
+        m.caja_id,
+        m.nombre_caja,
         CASE
           WHEN d.nombre ILIKE '%nafta%' OR d.nombre ILIKE '%quantium%' OR d.nombre ILIKE '%diesel%' THEN 'liquidos'
           WHEN d.nombre ILIKE '%gnc%' THEN 'gnc'
@@ -60,8 +71,8 @@ export const getReporteMensual = async (req: Request, res: Response): Promise<vo
       FROM datos_metricas m
       JOIN dim_producto d ON m.producto_id = d.producto_id
       WHERE m.fecha >= $1 AND m.fecha <= $2
-      GROUP BY m.fecha::date, grupo
-      ORDER BY m.fecha::date;
+      GROUP BY m.fecha::date, m.estacion_id, m.nombre_estacion, m.caja_id, m.nombre_caja, grupo
+      ORDER BY m.fecha::date, m.estacion_id, m.caja_id, grupo;
     `;
 
     const { rows } = await pool.query(query, [fechaInicio, fechaFin]);
@@ -87,7 +98,7 @@ export const getReporteMensual = async (req: Request, res: Response): Promise<vo
         (fila.shop_importe || 0),
     }));
 
-    console.log('📤 Respuesta enviada:', data);
+  console.log('📤 getReporteMensual filas:', data.length);
     res.status(200).json({ ok: true, data });
   } catch (error) {
     console.error("❌ Error al obtener reporte mensual:", (error as Error).message);

@@ -1,38 +1,5 @@
-// ✅ 4. Sincronizar automáticamente desde la última fecha de cierre hasta hoy
-export const syncCierresToDBAuto = async (req: Request, res: Response): Promise<void> => {
-  try {
-    // Buscar la última fecha cargada
-    const result = await pool.query('SELECT MAX(fecha) as max_fecha FROM datos_metricas');
-    let fechaInicio: string;
-    if (result.rows[0].max_fecha) {
-      // Sumar un día a la última fecha encontrada
-      const lastDate = new Date(result.rows[0].max_fecha);
-      lastDate.setDate(lastDate.getDate() + 1);
-      const iso = lastDate.toISOString();
-      const fechaSolo = iso.split('T');
-      fechaInicio = typeof fechaSolo[0] === 'string' ? fechaSolo[0] : '2023-01-01';
-    } else {
-      // Si no hay datos, usar una fecha de inicio por defecto
-      fechaInicio = '2023-01-01';
-    }
-    // Fecha de fin: hoy
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const fechaFin = `${yyyy}-${mm}-${dd}`;
-
-    // Llamar a la función de sincronización existente
-    req.query.fechaInicio = fechaInicio;
-    req.query.fechaFin = fechaFin;
-    // @ts-ignore
-    await syncCierresToDB(req, res);
-  } catch (error) {
-    console.error('❌ Error en syncCierresToDBAuto:', (error as Error).message);
-    res.status(500).json({ error: 'Error en la sincronización automática de cierres' });
-  }
-};
 import fetch from "node-fetch";
+import { estacionesMap, cajasMap } from "../utils/mapeos";
 import { parseStringPromise } from "xml2js";
 import dotenv from "dotenv";
 import { Request, Response } from "express";
@@ -53,12 +20,12 @@ interface CierreTurno {
   IdCierreCajaTesoreria: string;
 }
 
-// ✅ 1. Obtener lista de cierres (ya la tenés)
+// ✅ 1. Obtener lista de cierres (solo consulta directa)
 export const descargarCierres = async (req: Request, res: Response): Promise<void> => {
   try {
     const idEstacion = 1;
     const idCaja = 2;
-    const fecha = "2025-10-21";
+    const fecha = req.query.fecha || "2025-10-21";
 
     const url = `${BASE_URL}/Cierres/GetUltimosCierresTurno?idEstacion=${idEstacion}&idCaja=${idCaja}&fecha=${fecha}`;
     const response = await fetch(url, {
@@ -68,7 +35,8 @@ export const descargarCierres = async (req: Request, res: Response): Promise<voi
 
     const xml = await response.text();
     const json = await parseStringPromise(xml, { explicitArray: false });
-    const cierres = json.ArrayOfCierreTurno.CierreTurno;
+
+    const cierres = json?.ArrayOfCierreTurno?.CierreTurno;
     const lista: CierreTurno[] = Array.isArray(cierres) ? cierres : [cierres];
 
     res.status(200).json({ ok: true, cantidad: lista.length, data: lista });
@@ -78,10 +46,11 @@ export const descargarCierres = async (req: Request, res: Response): Promise<voi
   }
 };
 
-// ✅ 2. Obtener detalle de un cierre específico (ya lo probaste)
+// ✅ 2. Obtener detalle de un cierre específico
 export const obtenerDetalleCierre = async (req: Request, res: Response): Promise<void> => {
   try {
     const { idEstacion = 1, idCaja = 2, fechaHoraCierre } = req.query;
+
     if (!fechaHoraCierre) {
       res.status(400).json({ error: "Falta parámetro fechaHoraCierre" });
       return;
@@ -102,7 +71,7 @@ export const obtenerDetalleCierre = async (req: Request, res: Response): Promise
   }
 };
 
-// ✅ 3. Nueva función: sincronizar cierres del día con tu base de datos
+// ✅ 3. Sincronizar cierres manualmente por rango de fechas
 export const syncCierresToDB = async (req: Request, res: Response): Promise<void> => {
   try {
     console.log("🔁 Iniciando sincronización de cierres...");
@@ -116,43 +85,25 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // 📅 Generar todas las fechas entre inicio y fin
+    // Generar fechas entre inicio y fin
     const fechas: string[] = [];
-    const fechaInicioStr = String(fechaInicio);
-    const fechaFinStr = String(fechaFin);
-    let d = new Date(fechaInicioStr);
-    const fin = new Date(fechaFinStr);
+    let d = new Date(String(fechaInicio));
+    const fin = new Date(String(fechaFin));
 
     while (d <= fin) {
-      if (d instanceof Date && !isNaN(d.getTime())) {
-        const iso: string = d.toISOString();
-        if (iso) {
-          const fechaSolo = iso.split("T");
-          const fechaStr = fechaSolo[0];
-          if (typeof fechaStr === 'string') {
-            fechas.push(fechaStr);
-          } else {
-            console.warn(`⚠️ No se pudo extraer la fecha de ISOString: ${iso}`);
-          }
-        } else {
-          console.warn(`⚠️ No se pudo convertir la fecha a ISOString: ${d}`);
-        }
-      } else {
-        console.warn(`⚠️ Fecha inválida detectada: ${d}`);
+      if (d && !isNaN(d.getTime())) {
+        fechas.push(d.toISOString().split("T")[0] as string);
       }
       d.setDate(d.getDate() + 1);
     }
 
     let totalCierres = 0;
-    const totalDias = fechas.length;
+    console.log(`📆 Descargando cierres desde ${fechas[0]} hasta ${fechas[fechas.length - 1]} (${fechas.length} días)`);
 
-    console.log(`📆 Descargando cierres desde ${fechas[0]} hasta ${fechas[fechas.length - 1]}`);
-    console.log(`📊 Total de días a procesar: ${totalDias}`);
-
-    for (let i = 0; i < totalDias; i++) {
+    for (let i = 0; i < fechas.length; i++) {
       const fecha = fechas[i];
-      const progreso = ((i + 1) / totalDias * 100).toFixed(1);
-      console.log(`📅 (${i + 1}/${totalDias}) Procesando ${fecha} — Progreso: ${progreso}%`);
+      const progreso = ((i + 1) / fechas.length * 100).toFixed(1);
+      console.log(`📅 (${i + 1}/${fechas.length}) Procesando ${fecha} — ${progreso}%`);
 
       const urlCierres = `${BASE_URL}/Cierres/GetUltimosCierresTurno?idEstacion=${idEstacion}&idCaja=${idCaja}&fecha=${fecha}`;
       const respCierres = await fetch(urlCierres, {
@@ -164,7 +115,7 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
 
       const cierres = json?.ArrayOfCierreTurno?.CierreTurno;
       if (!cierres) {
-        console.log(`⚠️ No hay cierres para ${fecha}`);
+        console.log(`⚠️ Sin cierres en ${fecha}`);
         continue;
       }
 
@@ -172,14 +123,10 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
       totalCierres += lista.length;
 
       for (const cierre of lista) {
-        const fechaHora: string | undefined = cierre.Fecha;
-        if (!fechaHora) {
-          console.warn(`⚠️ Cierre ${cierre.IdCierreTurno} sin fecha. Se omite.`);
-          continue;
-        }
+        const fechaHora = cierre.Fecha;
+        if (!fechaHora) continue;
 
         const urlDetalle = `${BASE_URL}/Cierres/GetInformacionCierreTurno?idEstacion=${idEstacion}&idCaja=${idCaja}&fechaHoraCierre=${fechaHora}`;
-
         const respDetalle = await fetch(urlDetalle, {
           headers: { Authorization: `Bearer ${TOKEN}` },
         });
@@ -192,49 +139,93 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
         const totalLitros = Number(info?.TotalLitrosDespachados || 0);
         const totalEfectivo = Number(info?.TotalEfectivoRecaudado || 0);
 
-        // 🧠 Mapear según tipo de caja
         let productoId = 1;
         let deptoId = 1;
-
         const caja = cierre.Caja?.toUpperCase() || "";
+
         if (caja.includes("PLAYA")) {
-          deptoId = 1;
-          productoId = 4;
+          deptoId = 1; productoId = 4;
         } else if (caja.includes("SHOP")) {
-          deptoId = 2;
-          productoId = 8;
+          deptoId = 2; productoId = 8;
         } else if (caja.includes("LUBRIC")) {
-          deptoId = 3;
-          productoId = 7;
+          deptoId = 3; productoId = 7;
         }
 
+        const nombreEstacion = estacionesMap[idEstacion] || '';
+        const nombreCaja = cajasMap[cierre.IdCaja] || '';
+        const nombre = caja.nombreCaja || caja.NombreCaja || caja.nombrecaja || caja.nombre || caja.NOMBRECAJA || caja.descripcion;
+        console.log('idEstacion:', idEstacion, '->', estacionesMap[idEstacion]);
+        console.log('IdCaja:', cierre.IdCaja, '->', cajasMap[cierre.IdCaja]);
+        console.log('Insertando:', {
+          idEstacion, nombreEstacion, idCaja: cierre.IdCaja, nombreCaja
+        });
         await pool.query(
-          `INSERT INTO datos_metricas (fecha, empresa_id, depto_id, producto_id, cantidad, importe)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+          `INSERT INTO datos_metricas (
+             fecha, empresa_id, depto_id, producto_id, cantidad, importe,
+             estacion_id, caja_id, nombre_estacion, nombre_caja, id_cierre_turno
+           )
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+           ON CONFLICT (estacion_id, caja_id, id_cierre_turno) DO NOTHING`,
           [
-            new Date(fechaHora), // ✅ TypeScript ya sabe que es string
+            new Date(fechaHora),
             1,
             deptoId,
             productoId,
             totalLitros,
             totalImporte || totalEfectivo,
+            idEstacion,
+            cierre.IdCaja,
+            nombreEstacion, // <--- debe ser el del mapeo
+            nombreCaja,     // <--- debe ser el del mapeo
+            cierre.IdCierreTurno
           ]
         );
-
-        console.log(`💾 Guardado cierre ${cierre.IdCierreTurno} (${caja})`);
       }
     }
 
-    console.log(`✅ Sincronización completada: ${totalCierres} cierres cargados`);
+    console.log(`✅ Sincronización completada (${totalCierres} cierres cargados)`);
     res.status(200).json({
       ok: true,
-      message: "✅ Sincronización completada correctamente",
+      message: "Sincronización completada correctamente",
       totalCierres,
-      rango: { desde: fechaInicio, hasta: fechaFin },
+      rango: { desde: fechaInicio, hasta: fechaFin }
     });
   } catch (error) {
     console.error("❌ Error al sincronizar:", (error as Error).message);
     res.status(500).json({ error: "Error al sincronizar cierres" });
+  }
+};
+
+// ✅ 4. Sincronizar automáticamente desde la última fecha hasta hoy
+export const syncCierresToDBAuto = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query('SELECT MAX(fecha) AS max_fecha FROM datos_metricas');
+    let fechaInicio: string;
+
+    if (result.rows[0].max_fecha) {
+      const lastDate = new Date(result.rows[0].max_fecha);
+      lastDate.setDate(lastDate.getDate() + 1);
+  fechaInicio = lastDate.toISOString().split("T")[0] as string;
+    } else {
+      fechaInicio = "2023-01-01";
+    }
+
+    const hoy = new Date();
+    const yyyy = hoy.getFullYear();
+    const mm = String(hoy.getMonth() + 1).padStart(2, "0");
+    const dd = String(hoy.getDate()).padStart(2, "0");
+    const fechaFin = `${yyyy}-${mm}-${dd}`;
+
+    console.log(`🗓️ Sincronizando automáticamente desde ${fechaInicio} hasta ${fechaFin}`);
+
+    // Reutiliza la lógica principal
+    req.query.fechaInicio = fechaInicio;
+    req.query.fechaFin = fechaFin;
+    // @ts-ignore
+    await syncCierresToDB(req, res);
+  } catch (error) {
+    console.error("❌ Error en syncCierresToDBAuto:", (error as Error).message);
+    res.status(500).json({ error: "Error en sincronización automática" });
   }
 };
 
