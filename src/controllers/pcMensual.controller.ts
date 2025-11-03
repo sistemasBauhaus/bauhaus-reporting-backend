@@ -3,57 +3,61 @@ import { pool } from "../db/connection";
 
 export const getPcMensual = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log("📅 Filtro recibido:", req.query); 
-
+    console.log("📅 Filtro recibido:", req.query);
 
     let { fechaInicio, fechaFin } = req.query;
 
-    // Si no se pasan fechas, usar el mes en curso
+    // Si no se pasan fechas, usar el mes actual
     if (!fechaInicio || !fechaFin) {
       const now = new Date();
       const primerDiaMes = new Date(now.getFullYear(), now.getMonth(), 1);
-      const yyyy = primerDiaMes.getFullYear();
-      const mm = String(primerDiaMes.getMonth() + 1).padStart(2, '0');
-      const dd = String(primerDiaMes.getDate()).padStart(2, '0');
-      fechaInicio = `${yyyy}-${mm}-${dd}`;
-      const yyyy2 = now.getFullYear();
-      const mm2 = String(now.getMonth() + 1).padStart(2, '0');
-      const dd2 = String(now.getDate()).padStart(2, '0');
-      fechaFin = `${yyyy2}-${mm2}-${dd2}`;
-      console.log(`📅 No se pasaron fechas, usando mes en curso: ${fechaInicio} a ${fechaFin}`);
+      fechaInicio = primerDiaMes.toISOString().split("T")[0];
+      fechaFin = now.toISOString().split("T")[0];
+      console.log(`📅 No se pasaron fechas, usando mes actual: ${fechaInicio} a ${fechaFin}`);
     } else {
       console.log(`📅 Fechas recibidas: ${fechaInicio} a ${fechaFin}`);
     }
 
-    // Si consumes una API externa aquí, puedes agregar un log:
-    // console.log('🌐 Consultando API externa...');
 
     const { rows } = await pool.query(
       `
       SELECT 
         m.fecha::date AS fecha,
-        d.nombre AS producto,
-        d.categoria,
+        m.estacion_id,
+        m.nombre_estacion,
+        m.caja_id,
+        m.nombre_caja,
+        p.nombre AS producto,
+        p.categoria AS categoria,
         SUM(m.importe) AS total_importe,
         SUM(m.cantidad) AS total_cantidad
       FROM datos_metricas m
-      JOIN dim_producto d ON m.producto_id = d.producto_id
-      WHERE m.fecha >= $1::date AND m.fecha <= $2::date
-      GROUP BY m.fecha::date, d.nombre, d.categoria
-      ORDER BY m.fecha::date, d.categoria, d.nombre;
+      JOIN departamentos d ON m.depto_id = d.depto_id
+      JOIN dim_producto p ON m.producto_id = p.producto_id
+      WHERE m.fecha BETWEEN $1::date AND $2::date
+      GROUP BY m.fecha::date, m.estacion_id, m.nombre_estacion, m.caja_id, m.nombre_caja, p.nombre, p.categoria
+      ORDER BY m.fecha::date DESC;
       `,
       [fechaInicio, fechaFin]
     );
 
-    const responseData = rows.map((row: any) => ({
-      ...row,
-      total_importe: String(row.total_importe),
-      total_cantidad: String(row.total_cantidad),
+    const data = rows.map((r: any) => ({
+      fecha: r.fecha,
+      estacion_id: r.estacion_id,
+      nombre_estacion: r.nombre_estacion,
+      caja_id: r.caja_id,
+      nombre_caja: r.nombre_caja,
+      categoria: r.categoria,
+      producto: r.producto,
+      total_importe: Number(r.total_importe),
+      total_cantidad: Number(r.total_cantidad),
     }));
-    console.log("➡️ Respuesta enviada PC Mensual:", responseData);
-    res.status(200).json(responseData);
+
+    console.log("➡️ Respuesta enviada PC Mensual:", data);
+    res.status(200).json({ ok: true, data });
   } catch (error) {
     console.error("❌ Error al obtener PC Mensual:", (error as Error).message);
-    res.status(500).json({ error: "Error al obtener PC Mensual" });
+    res.status(500).json({ ok: false, error: "Error al obtener PC Mensual" });
   }
 };
+

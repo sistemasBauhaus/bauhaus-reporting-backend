@@ -6,7 +6,8 @@ import reportesRoutes from './routes/reportes.routes';
 import cierresRoutes from './routes/cierres.routes';
 import cors from 'cors';
 import path from 'path';
-import { cargarMapeos } from './utils/mapeos'; // 👈 IMPORTA LA FUNCIÓN
+import { cargarMapeos } from './utils/mapeos';
+import './jobs/syncCierresJob'; // 👈 NUEVO: activa la tarea automática
 
 dotenv.config();
 
@@ -14,7 +15,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 8080;
 
 async function start() {
-  await cargarMapeos(); // 👈 ESPERA A QUE SE CARGUEN LOS MAPEOS
+  await cargarMapeos(); // 👈 Cargar mapeos antes de iniciar todo
 
   app.use(cors({
     origin: [
@@ -31,29 +32,28 @@ async function start() {
 
   app.use(express.json());
 
-  // Montar rutas de API primero
-  app.use('/api', cierresRoutes); 
+  // 🔹 Montar rutas de API
+  app.use('/api', cierresRoutes);
   app.use('/api', loginRouter);
   app.use('/api', pcMensualRoutes);
   app.use('/api', reportesRoutes);
 
-  // Endpoint de prueba para la raíz
+  // 🔹 Endpoint raíz
   app.get('/', (_req, res) => {
     res.send('🚀 Backend Bauhaus Reporting corriendo correctamente');
   });
 
-  // --- SOLO PARA PRODUCCIÓN: servir frontend React ---
+  // 🔹 Servir frontend en producción
   if (process.env.NODE_ENV === 'production') {
     const buildPath = path.join(__dirname, '../build');
     app.use(express.static(buildPath));
-    // Catch-all: cualquier ruta que NO sea /api, servir index.html
     app.get(/^\/(?!api).*/, (req, res) => {
       res.sendFile(path.join(buildPath, 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Servidor corriendo en puerto ${PORT}`);
+    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   });
 }
 
