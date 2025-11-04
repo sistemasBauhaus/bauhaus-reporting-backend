@@ -13,7 +13,7 @@ cron.schedule("*/10 * * * *", async () => {
   const fechaInicio = primerDiaMes.toISOString().split("T")[0];
 
   try {
-    const res = await fetch(`${BACKEND_URL}/cierres/sync-auto?fechaInicio=${fechaInicio}&fechaFin=${hoy}`, {
+    const res = await fetch(`${BACKEND_URL}/cierres/sync?fechaInicio=${fechaInicio}&fechaFin=${hoy}`, {
       method: "POST"
     });
     const json = await res.json() as any;
