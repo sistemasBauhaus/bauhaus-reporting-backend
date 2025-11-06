@@ -95,10 +95,12 @@ function generarFechas(desde: string, hasta: string): string[] {
   let actual = new Date(desde);
   const fin = new Date(hasta);
   while (actual <= fin) {
-    const fechaStr = actual.toISOString().split("T")[0];
-    if (typeof fechaStr === "string") {
-      fechas.push(fechaStr);
-    }
+    // Genera la fecha en formato YYYY-MM-DD usando hora local
+    const yyyy = actual.getFullYear();
+    const mm = String(actual.getMonth() + 1).padStart(2, '0');
+    const dd = String(actual.getDate()).padStart(2, '0');
+    const fechaStr = `${yyyy}-${mm}-${dd}`;
+    fechas.push(fechaStr);
     actual.setDate(actual.getDate() + 1);
   }
   return fechas;
