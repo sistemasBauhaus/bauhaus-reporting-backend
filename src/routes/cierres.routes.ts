@@ -3,8 +3,8 @@ import { syncCierresToDB } from "../controllers/cierres.controller";
 
 const router = Router();
 
-// router.get("/cierres", descargarCierres);
-// router.get("/cierres/detalle", obtenerDetalleCierre);
-router.post("/cierres/sync", syncCierresToDB); 
+
+router.get("/cierres/sync", syncCierresToDB); // Permite GET con parámetros de fecha
+router.post("/cierres/sync", syncCierresToDB); // Mantiene POST para compatibilidad
 
 export default router;

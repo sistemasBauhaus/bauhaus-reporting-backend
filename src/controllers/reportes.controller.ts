@@ -13,12 +13,15 @@ export const getReporteSubdiario = async (req: Request, res: Response): Promise<
         d.categoria,
         d.nombre,
         SUM(m.cantidad) AS litros,
-        SUM(m.importe) AS importe
+        SUM(m.importe) AS importe,
+        COALESCE(ct.total_efectivo_recaudado, 0) AS total_efectivo_recaudado,
+        COALESCE(ct.importe_ventas_totales_contado, 0) AS importe_ventas_totales_contado
       FROM datos_metricas m
       JOIN dim_producto d USING (producto_id)
+      LEFT JOIN cierres_turno ct ON ct.fecha::date = m.fecha::date AND ct.id_estacion = m.estacion_id AND ct.id_caja = m.caja_id
       WHERE ($1::date IS NULL OR m.fecha >= $1::date)
         AND ($2::date IS NULL OR m.fecha <= $2::date)
-      GROUP BY m.fecha::date, m.estacion_id, m.nombre_estacion, m.caja_id, m.nombre_caja, d.categoria, d.nombre
+      GROUP BY m.fecha::date, m.estacion_id, m.nombre_estacion, m.caja_id, m.nombre_caja, d.categoria, d.nombre, ct.total_efectivo_recaudado, ct.importe_ventas_totales_contado
       ORDER BY m.fecha::date, m.estacion_id, m.caja_id, d.categoria;
     `;
 
@@ -29,8 +32,12 @@ export const getReporteSubdiario = async (req: Request, res: Response): Promise<
     res.status(500).json({ error: "Error al obtener reporte subdiario" });
   }
 };
+
 import { Request, Response } from "express";
 import { pool } from "../db/connection";
+
+// Convierte cualquier valor a número seguro (0 si null, undefined, string vacío, NaN)
+const safeNumber = (val: any) => Number(val) || 0;
 
 export const getReporteMensual = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -49,54 +56,26 @@ export const getReporteMensual = async (req: Request, res: Response): Promise<vo
       fechaFin = `${yyyy2}-${mm2}-${dd2}`;
     }
 
-    const query = `
+    // Consulta los totales generales desde cierres_turno
+    const queryTotales = `
       SELECT
-        m.fecha::date AS fecha,
-        m.estacion_id,
-        m.nombre_estacion,
-        m.caja_id,
-        m.nombre_caja,
-        CASE
-          WHEN d.nombre ILIKE '%nafta%' OR d.nombre ILIKE '%quantium%' OR d.nombre ILIKE '%diesel%' THEN 'liquidos'
-          WHEN d.nombre ILIKE '%gnc%' THEN 'gnc'
-          WHEN d.nombre ILIKE '%lubricante%' THEN 'lubricantes'
-          WHEN d.nombre ILIKE '%adblue%' THEN 'adblue'
-          WHEN d.categoria ILIKE '%shop%' THEN 'shop'
-          ELSE 'otros'
-        END AS grupo,
-        SUM(m.importe) AS importe
-      FROM datos_metricas m
-      JOIN dim_producto d ON m.producto_id = d.producto_id
-      WHERE m.fecha >= $1 AND m.fecha <= $2
-      GROUP BY m.fecha::date, m.estacion_id, m.nombre_estacion, m.caja_id, m.nombre_caja, grupo
-      ORDER BY m.fecha::date, m.estacion_id, m.caja_id, grupo;
+        fecha::date AS fecha,
+        id_estacion,
+        nombre_estacion,
+        caja_id,
+        nombre_caja,
+        total_efectivo_recaudado,
+        importe_ventas_totales_contado
+      FROM cierres_turno
+      WHERE fecha >= $1 AND fecha <= $2
+      ORDER BY fecha::date, id_estacion, caja_id;
     `;
 
-    const { rows } = await pool.query(query, [fechaInicio, fechaFin]);
+    const { rows } = await pool.query(queryTotales, [fechaInicio, fechaFin]);
 
-    console.log('🔎 Filas SQL:', rows);
-
-    // Pivotear resultados
-    const reporte: Record<string, any> = {};
-    for (const row of rows) {
-      const fecha = row.fecha instanceof Date ? row.fecha.toISOString().split("T")[0] : String(row.fecha);
-      if (!reporte[fecha]) reporte[fecha] = { fecha };
-      reporte[fecha][`${row.grupo}_importe`] = Number(row.importe);
-    }
-
-    // Calcular totales
-    const data = Object.values(reporte).map((fila: any) => ({
-      ...fila,
-      total:
-        (fila.liquidos_importe || 0) +
-        (fila.gnc_importe || 0) +
-        (fila.lubricantes_importe || 0) +
-        (fila.adblue_importe || 0) +
-        (fila.shop_importe || 0),
-    }));
-
-    console.log('📤 Respuesta enviada:', data);
-    res.status(200).json({ ok: true, data });
+    // Enviar los totales al frontend
+    console.log('📤 Respuesta enviada:', rows);
+    res.status(200).json({ ok: true, data: rows });
   } catch (error) {
     console.error("❌ Error al obtener reporte mensual:", (error as Error).message);
     res.status(500).json({ error: "Error al obtener reporte mensual" });
