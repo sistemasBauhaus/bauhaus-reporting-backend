@@ -91,15 +91,18 @@ async function cargarPreciosArticulos() {
 // 🔹 Generar rango de fechas
 // ==========================================================
 function generarFechas(desde: string, hasta: string): string[] {
+  console.log(`🕒 [DEBUG] Generando fechas desde: ${desde} hasta: ${hasta}`);
   const fechas: string[] = [];
   let actual = new Date(desde);
   const fin = new Date(hasta);
+  console.log(`🕒 [DEBUG] Fecha inicial local: ${actual.toString()} | Fecha final local: ${fin.toString()}`);
   while (actual <= fin) {
     // Genera la fecha en formato YYYY-MM-DD usando hora local
     const yyyy = actual.getFullYear();
     const mm = String(actual.getMonth() + 1).padStart(2, '0');
     const dd = String(actual.getDate()).padStart(2, '0');
     const fechaStr = `${yyyy}-${mm}-${dd}`;
+    console.log(`🕒 [DEBUG] Fecha generada: ${fechaStr} (local: ${actual.toString()})`);
     fechas.push(fechaStr);
     actual.setDate(actual.getDate() + 1);
   }
