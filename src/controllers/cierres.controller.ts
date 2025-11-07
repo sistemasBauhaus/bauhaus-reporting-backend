@@ -154,8 +154,20 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
         const listaCierres = Array.isArray(cierres) ? cierres : [cierres];
 
         for (const cierre of listaCierres) {
+
           const idCierreTurno = Number(cierre.IdCierreTurno);
           const fechaHora = cierre.Fecha;
+          // Forzar fecha local Argentina (YYYY-MM-DD)
+          const fechaArgentina = (() => {
+            const d = new Date(fechaHora);
+            // Ajustar a Buenos Aires (GMT-3)
+            const offset = -3 * 60; // minutos
+            d.setMinutes(d.getMinutes() + d.getTimezoneOffset() + offset);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+          })();
           const diffHoras = (Date.now() - new Date(fechaHora).getTime()) / 3600000;
           if (diffHoras < 1) continue;
 
@@ -181,6 +193,7 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
           console.log('➡️ Valores a guardar en cierres_turno:', {
             idCierreTurno,
             fechaHora,
+            fechaArgentina,
             idCaja,
             nombreCaja,
             idEstacion,
@@ -210,7 +223,7 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
               id_estacion = EXCLUDED.id_estacion,
               fecha = EXCLUDED.fecha
             ;`,
-            [idCierreTurno, fechaHora, idCaja, nombreCaja, idEstacion, nombreEstacion, totalImporte, totalLitros, totalEfectivoRecaudado, importeVentasTotalesContado]
+            [idCierreTurno, fechaArgentina, idCaja, nombreCaja, idEstacion, nombreEstacion, totalImporte, totalLitros, totalEfectivoRecaudado, importeVentasTotalesContado]
           );
 
           const articulos = info?.ArticulosDespachados?.InformacionCierreTurnoDetalle;
@@ -243,7 +256,7 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
                 ON CONFLICT (id_cierre_turno, producto_id)
                 DO UPDATE SET cantidad = EXCLUDED.cantidad, importe = EXCLUDED.importe`,
                 [
-                  fechaHora,
+                  fechaArgentina,
                   1,
                   1,
                   productoId,
@@ -272,7 +285,7 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
               ON CONFLICT (id_cierre_turno, producto_id)
               DO UPDATE SET importe = EXCLUDED.importe`,
-              [fechaHora, 1, 4, 8, 0, totalImporte, idEstacion, idCaja, nombreEstacion, nombreCaja, idCierreTurno]
+              [fechaArgentina, 1, 4, 8, 0, totalImporte, idEstacion, idCaja, nombreEstacion, nombreCaja, idCierreTurno]
             );
           }
 

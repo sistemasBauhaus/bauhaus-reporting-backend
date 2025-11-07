@@ -1,21 +1,15 @@
-import express from 'express';
-import { pool } from '../db/connection';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import express from "express";
+import { loginUser, registerUser, updateUser, getAllUsers, getAllEmpresas, getAllRoles } from "../controllers/auth.controller";
+
 
 const router = express.Router();
 
-router.post('/login', (req, res) => {
-  // Login ficticio: acepta cualquier email y password
-  const { email } = req.body;
-  const token = 'fake-token-for-deploy';
 
-  res.json({
-    message: 'Login exitoso (ficticio)',
-    usuario: email || 'demo',
-    rol: 1,
-    token,
-  });
-});
+router.get("/users", getAllUsers);
+router.get("/empresas", getAllEmpresas);
+router.get("/roles", getAllRoles);
+router.post("/register", registerUser);
+router.post("/login", loginUser);
+router.put("/users/:id", updateUser);
 
 export default router;
