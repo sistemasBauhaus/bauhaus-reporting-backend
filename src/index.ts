@@ -6,6 +6,8 @@ import reportesRoutes from './routes/reportes.routes';
 import cierresRoutes from './routes/cierres.routes';
 import facturasRoutes from './routes/facturas.routes';
 import positionsRoutes from './routes/positions.routes';
+import facturacionRoutes from './routes/facturacion.routes';
+import ctacteRoutes from './routes/ctacte.routes';
 import cors from 'cors';
 import path from 'path';
 import { cargarMapeos } from './utils/mapeos';
@@ -35,13 +37,30 @@ async function start() {
 
   app.use(express.json());
 
+  // 🔹 Middleware de logging para todas las peticiones
+  app.use((req, res, next) => {
+    console.log("📥 [DEBUG] ========================================");
+    console.log("📥 [DEBUG] Petición recibida");
+    console.log("📥 [DEBUG] Método:", req.method);
+    console.log("📥 [DEBUG] URL:", req.url);
+    console.log("📥 [DEBUG] Path:", req.path);
+    console.log("📥 [DEBUG] Query:", req.query);
+    console.log("📥 [DEBUG] Body:", req.body);
+    console.log("📥 [DEBUG] ========================================");
+    next();
+  });
+
   // 🔹 Montar rutas de API
+  console.log("🔍 [DEBUG] Registrando rutas de API...");
   app.use('/api', cierresRoutes);
   app.use('/api', loginRouter);
   app.use('/api', pcMensualRoutes);
   app.use('/api', reportesRoutes);
   app.use('/api', facturasRoutes);
   app.use('/api/positions', positionsRoutes);
+  app.use('/api', facturacionRoutes);
+  app.use('/api', ctacteRoutes);
+  console.log("✅ [DEBUG] Todas las rutas de API registradas");
 
   // 🔹 Endpoint raíz
   app.get('/', (_req, res) => {
