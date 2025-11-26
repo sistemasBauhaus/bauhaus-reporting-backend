@@ -4,10 +4,13 @@ import loginRouter from './routes/login.routes';
 import pcMensualRoutes from './routes/pcMensual.routes';
 import reportesRoutes from './routes/reportes.routes';
 import cierresRoutes from './routes/cierres.routes';
+import facturasRoutes from './routes/facturas.routes';
+import positionsRoutes from './routes/positions.routes';
 import cors from 'cors';
 import path from 'path';
 import { cargarMapeos } from './utils/mapeos';
-import './jobs/syncCierresJob'; // 👈 NUEVO: activa la tarea automática
+import './jobs/syncCierresJob'; // 👈 Activa la tarea automática de cierres
+import './jobs/syncFacturacionJob'; // 👈 Activa la tarea automática de facturación
 
 dotenv.config();
 
@@ -37,6 +40,8 @@ async function start() {
   app.use('/api', loginRouter);
   app.use('/api', pcMensualRoutes);
   app.use('/api', reportesRoutes);
+  app.use('/api', facturasRoutes);
+  app.use('/api/positions', positionsRoutes);
 
   // 🔹 Endpoint raíz
   app.get('/', (_req, res) => {
