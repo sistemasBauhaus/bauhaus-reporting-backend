@@ -166,7 +166,7 @@ export async function sincronizarRecibos(fechaInicio: string, fechaFin: string):
       // Insertar o actualizar recibo
       const resultRecibo = await pool.query(
         `INSERT INTO recibos (
-          id_recibo, fecha_recibo, punto_venta_recibo, razon_social,
+          fecha_recibo, punto_venta_recibo, numero_recibo,razon_social,
           numero_documento, total_efectivo, total_sin_imputar
         ) VALUES ($1,$2,$3,$4,$5,$6,$7)
         ON CONFLICT (punto_venta_recibo, numero_recibo)
@@ -176,9 +176,9 @@ export async function sincronizarRecibos(fechaInicio: string, fechaFin: string):
           total_sin_imputar = EXCLUDED.total_sin_imputar
         RETURNING id_recibo, (xmax = 0) AS insertado`,
         [
-          parseInt(recibo.NumeroRecibo || "0"),
           parsearFechaAPI(recibo.FechaRecibo),
           parseInt(recibo.PuntoVentaRecibo || "0"),
+          parseInt(recibo.NumeroRecibo || "0"),
           recibo.RazonSocial,
           recibo.NumeroDocumento || null,
           safeNumber(recibo.TotalEfectivo),

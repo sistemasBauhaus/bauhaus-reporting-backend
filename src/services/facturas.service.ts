@@ -77,6 +77,27 @@ function safeNumber(val: any, decimals: number = 2): number {
 }
 
 /**
+ * Maneja valores XML con atributo xsi:nil="true" como null
+ * Convierte {"xsi:nil": "true"} o {"_xsi": {"nil": "true"}} a null
+ */
+function handleXsiNil(value: any): any {
+  if (!value) return null;
+  
+  // Caso 1: {"xsi:nil": "true"}
+  if (typeof value === 'object' && value['xsi:nil'] === 'true') {
+    return null;
+  }
+  
+  // Caso 2: {"_xsi": {"nil": "true"}}
+  if (typeof value === 'object' && value._xsi?.nil === 'true') {
+    return null;
+  }
+  
+  // Caso 3: Valor simple
+  return value;
+}
+
+/**
  * Sincroniza facturas de venta desde la API de Caldén Oil
  */
 export async function sincronizarFacturas(fechaInicio: string, fechaFin: string): Promise<{
@@ -161,13 +182,10 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
       const fechaParsada = parsearFechaAPI(cab.Fecha);
       fechaParsada.setHours(fechaParsada.getHours() - 2);
 
-      console.log(`📄 Fecha factura: ${cab.Fecha}`);
-      console.log(`📄 Fecha factura Original: ${fechaParsada}`);
-
       // Insertar o actualizar cabecera
       const resultCab = await pool.query(
         `INSERT INTO facturas_venta (
-          id_factura, tipo_comprobante, punto_venta, fecha, codigo, razon_social,
+          tipo_comprobante, punto_venta, numero, fecha, codigo, razon_social,
           numero_documento, domicilio, localidad, id_localidad, codigo_postal,
           patente, moneda, tipo_pago, neto_gravado, neto_no_gravado, iva,
           impuesto_interno, tasas, tasa_vial, jurisdiccion, percepcion_iibb,
@@ -186,16 +204,16 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
           id_movimiento_cancelado = EXCLUDED.id_movimiento_cancelado
         RETURNING id_factura, (xmax = 0) AS insertado`,
         [
-          parseInt(cab.Numero || 0),
           cab.TipoComprobante,
           parseInt(cab.PuntoVenta || 0),
+          parseInt(cab.Numero || 0),
           parsearFechaAPI(cab.Fecha),
           cab.Codigo || null,
           cab.RazonSocial || null,
           cab.NumeroDocumento || null,
           cab.Domicilio || null,
           cab.Localidad || null,
-          cab.IdLocalidad?._xsi?.nil === "true" ? null : cab.IdLocalidad,
+          parseInt(handleXsiNil(cab.IdLocalidad) || 0) || null,
           parseInt(cab.CodigoPostal || 0) || null,
           cab.Patente || null,
           cab.Moneda || "PES",
@@ -211,7 +229,7 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
           safeNumber(cab.PercepcionIVA),
           safeNumber(cab.OtrasPercepciones),
           safeNumber(cab.Total),
-          cab.IdClienteSeleccionado?._xsi?.nil === "true" ? null : cab.IdClienteSeleccionado,
+          handleXsiNil(cab.IdClienteSeleccionado),
           parseInt(cab.IdEstacion || 0) || null,
           cab.Chofer || null,
           parseInt(cab.idMovimientoFac || 0) || null,
@@ -257,7 +275,7 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
         if (idCierreTurno > 0) {
           await pool.query(
             `INSERT INTO facturas_venta_detalle (
-              id_factura, cantidad, codigo_articulo, descripcion_articulo,
+              id_movimientos_detalle_fac, id_factura, cantidad, codigo_articulo, descripcion_articulo,
               id_grupo_articulo, descripcion_grupo, precio, iva_unitario,
               impuesto_interno_unitario, tasas_unitario, tasa_vial_unitario,
               costo_unitario, id_articulo, id_caja, identificador_caja,
@@ -265,10 +283,11 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
               total_impuesto_interno, total_tasas, total_tasa_vial,
               alicuota_iva, total_renglon
             ) VALUES (
-              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24
+              $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
             )
             ON CONFLICT DO NOTHING`,
             [
+              parseInt(d.IdMovimientosDetalleFac || 0),
               idFactura,
               safeNumber(d.Cantidad, 4),
               safeNumber(d.CodigoArticulo, 4),

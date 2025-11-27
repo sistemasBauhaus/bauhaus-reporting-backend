@@ -4,21 +4,39 @@ import { sincronizarFacturas } from "../services/facturas.service";
 import { sincronizarRecibos } from "../services/recibos.service";
 
 /**
+ * Obtiene la hora actual en zona horaria de Argentina (UTC-3)
+ */
+function obtenerHoraArgentina(): Date {
+  const ahora = new Date();
+  ahora.setHours(ahora.getHours() - 3);
+  return ahora;
+}
+
+/**
+ * Convierte una fecha local de Argentina a formato ISO para la API
+ */
+function formatearFechaParaAPI(fecha: Date, esFin: boolean = false): string {
+  const isoStr = fecha.toISOString().split(".")[0];
+  const sufijo = esFin ? ".999Z" : ".000Z";
+  return isoStr + sufijo;
+}
+
+/**
  * Cron job que se ejecuta cada hora para sincronizar facturas y recibos
- * Programación: cada hora (0 * * * * = a las 0 de cada hora)
+ * Programación: cada hora (0 * * * *)
  * Sincroniza la última hora de datos
  */
 cron.schedule("0 * * * *", async () => {
   console.log("⏰ Cron de facturación ejecutado:", new Date().toISOString());
 
-  // Obtener la última hora
-  const ahora = new Date();
+  // Obtener la última hora en hora de Argentina
+  const ahora = obtenerHoraArgentina();
   const hace1Hora = new Date(ahora);
   hace1Hora.setHours(hace1Hora.getHours() - 1);
   
   // Construir las fechas
-  const fechaInicio = hace1Hora.toISOString().split(".")[0] + ".000Z";
-  const fechaFin = ahora.toISOString().split(".")[0] + ".999Z";
+  const fechaInicio = formatearFechaParaAPI(hace1Hora, false);
+  const fechaFin = formatearFechaParaAPI(ahora, true);
 
   try {
     console.log(`📥 Sincronizando última hora`);
@@ -50,7 +68,8 @@ export async function sincronizacionManual() {
   console.log("🔄 Ejecutando sincronización manual...", new Date().toISOString());
 
   // Usar ayer (día cerrado) en lugar de hoy
-  const ayer = new Date();
+  const horaArgentina = obtenerHoraArgentina();
+  const ayer = new Date(horaArgentina);
   ayer.setDate(ayer.getDate() - 1);
   const fechaAyer = (ayer.toISOString().split("T")[0] || new Date().toISOString().split("T")[0]) as string;
 
