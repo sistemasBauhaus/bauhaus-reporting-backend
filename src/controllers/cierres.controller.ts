@@ -33,7 +33,7 @@ async function cargarEstaciones() {
   estacionesCache = Object.fromEntries(
     estaciones.map((e: any) => [Number(e.IdEstacion), e.Nombre || "Sin nombre"])
   );
-  console.log("✅ Estaciones cargadas:", estacionesCache);
+
 }
 
 // Cargar cajas
@@ -61,14 +61,14 @@ async function cargarCajas() {
 
 async function cargarPreciosArticulos() {
   try {
-    console.log("📊 Intentando leer precios desde public.precios_articulos...");
+   // console.log("📊 Intentando leer precios desde public.precios_articulos...");
     const { rows } = await pool.query(`
       SELECT producto_id::int, precio::numeric
       FROM public.precios_articulos
       ORDER BY producto_id
     `);
 
-    console.log(`📈 Consulta SQL devuelta: ${rows.length} filas`);
+   // console.log(`📈 Consulta SQL devuelta: ${rows.length} filas`);
     if (rows.length === 0) {
       console.warn("⚠️ No se encontraron precios en la base local (tabla vacía o schema incorrecto)");
     }
@@ -81,7 +81,6 @@ async function cargarPreciosArticulos() {
     }
 
     preciosArticulos = mapa;
-    console.log("✅ Precios cargados correctamente:", preciosArticulos);
   } catch (e: any) {
     console.error("❌ Error leyendo precios_articulos:", e.message);
   }
@@ -91,18 +90,17 @@ async function cargarPreciosArticulos() {
 // 🔹 Generar rango de fechas
 // ==========================================================
 function generarFechas(desde: string, hasta: string): string[] {
-  console.log(`🕒 [DEBUG] Generando fechas desde: ${desde} hasta: ${hasta}`);
+ // console.log(`🕒 [DEBUG] Generando fechas desde: ${desde} hasta: ${hasta}`);
   const fechas: string[] = [];
   let actual = new Date(desde);
   const fin = new Date(hasta);
-  console.log(`🕒 [DEBUG] Fecha inicial local: ${actual.toString()} | Fecha final local: ${fin.toString()}`);
+ // console.log(`🕒 [DEBUG] Fecha inicial local: ${actual.toString()} | Fecha final local: ${fin.toString()}`);
   while (actual <= fin) {
     // Genera la fecha en formato YYYY-MM-DD usando hora local
     const yyyy = actual.getFullYear();
     const mm = String(actual.getMonth() + 1).padStart(2, '0');
     const dd = String(actual.getDate()).padStart(2, '0');
     const fechaStr = `${yyyy}-${mm}-${dd}`;
-    console.log(`🕒 [DEBUG] Fecha generada: ${fechaStr} (local: ${actual.toString()})`);
     fechas.push(fechaStr);
     actual.setDate(actual.getDate() + 1);
   }
@@ -129,7 +127,7 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
     const fechas = generarFechas(fechaInicio, fechaFin);
     let totalCierres = 0;
 
-    console.log(`📆 Procesando desde ${fechaInicio} hasta ${fechaFin} (${fechas.length} días)`);
+    //console.log(`📆 Procesando desde ${fechaInicio} hasta ${fechaFin} (${fechas.length} días)`);
 
     let avance = 0;
     const totalFechas = fechas.length;
@@ -140,7 +138,7 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
         if (/NO USAR|ADMINISTRATIVA/i.test(nombreCaja)) continue;
 
         avance++;
-        console.log(`� Procesando: Fecha ${fecha} (${iFecha + 1}/${totalFechas}), Caja ${nombreCaja} (ID ${idCaja}) (${iCaja + 1}/${totalCajas}), avance: ${avance}`);
+       // console.log(`� Procesando: Fecha ${fecha} (${iFecha + 1}/${totalFechas}), Caja ${nombreCaja} (ID ${idCaja}) (${iCaja + 1}/${totalCajas}), avance: ${avance}`);
 
         const urlCierres = `${BASE_URL}/Cierres/GetUltimosCierresTurno?idEstacion=${idEstacion}&idCaja=${idCaja}&fecha=${fecha}`;
         const resp = await fetch(urlCierres, { headers: { Authorization: `Bearer ${TOKEN}` } });
@@ -176,11 +174,11 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
           const xmlDetalle = await detalleResp.text();
 
           // 👇 Log para ver el XML recibido
-          console.log("🔎 XML recibido de GetInformacionCierreTurno:", xmlDetalle);
+         // console.log("🔎 XML recibido de GetInformacionCierreTurno:", xmlDetalle);
 
           // Si quieres ver el JSON parseado:
           const jsonDetalle = await parseStringPromise(xmlDetalle, { explicitArray: false });
-          console.log("🔎 JSON parseado:", JSON.stringify(jsonDetalle, null, 2));
+          //console.log("🔎 JSON parseado:", JSON.stringify(jsonDetalle, null, 2));
 
           if (!xmlDetalle || xmlDetalle.startsWith("<!DOCTYPE")) continue;
 
@@ -190,19 +188,19 @@ export const syncCierresToDB = async (req: Request, res: Response): Promise<void
           const totalEfectivoRecaudado = Number(info?.TotalEfectivoRecaudado || 0);
           const importeVentasTotalesContado = Number(info?.ImporteVentasTotalesContado || 0);
 
-          console.log('➡️ Valores a guardar en cierres_turno:', {
-            idCierreTurno,
-            fechaHora,
-            fechaArgentina,
-            idCaja,
-            nombreCaja,
-            idEstacion,
-            nombreEstacion,
-            totalImporte,
-            totalLitros,
-            totalEfectivoRecaudado,
-            importeVentasTotalesContado
-          });
+          //console.log('➡️ Valores a guardar en cierres_turno:', {
+          //  idCierreTurno,
+           // fechaHora,
+           // fechaArgentina,
+           // idCaja,
+           // nombreCaja,
+           // idEstacion,
+           // nombreEstacion,
+           // totalImporte,
+          //  totalLitros,
+          //  totalEfectivoRecaudado,
+          //  importeVentasTotalesContado
+        //  });
 
           await pool.query(
             `INSERT INTO cierres_turno (

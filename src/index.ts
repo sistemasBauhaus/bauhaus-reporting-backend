@@ -52,6 +52,9 @@ async function start() {
 
   // 🔹 Montar rutas de API
   console.log("🔍 [DEBUG] Registrando rutas de API...");
+  // Rutas de usuarios, empresas, roles, permisos, etc.
+  const userRoutes = require('./routes/user.routes').default;
+  app.use('/api', userRoutes);
   app.use('/api', cierresRoutes);
   app.use('/api', loginRouter);
   app.use('/api', pcMensualRoutes);
