@@ -13,6 +13,7 @@ import path from 'path';
 import { cargarMapeos } from './utils/mapeos';
 import './jobs/syncCierresJob'; // 👈 Activa la tarea automática de cierres
 import './jobs/syncFacturacionJob'; // 👈 Activa la tarea automática de facturación
+import tanquesRoutes from './routes/tanques.routes';
 
 dotenv.config();
 
@@ -63,6 +64,7 @@ async function start() {
   app.use('/api/positions', positionsRoutes);
   app.use('/api', facturacionRoutes);
   app.use('/api', ctacteRoutes);
+  app.use('/api/tanques', tanquesRoutes);
   console.log("✅ [DEBUG] Todas las rutas de API registradas");
 
   // 🔹 Endpoint raíz
