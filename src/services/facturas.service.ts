@@ -1,20 +1,65 @@
 import { pool } from "../db/connection";
+import { parseStringPromise } from "xml2js";
 import fetch from "node-fetch";
 
 const BASE_URL = process.env.API_BASE_URL as string;
 const TOKEN = process.env.API_TOKEN as string;
 
-// Convierte valores a Float seguro (maneja nulls y strings vacíos)
+function asArray(val: any): any[] {
+  if (!val) return [];
+  return Array.isArray(val) ? val : [val];
+}
+
+// Helper robusto para extraer arrays de contenedores XML
+function getArrayFromContainer(container: any, childKey: string): any[] {
+  if (!container) return [];
+  if (container[childKey]) return asArray(container[childKey]);
+  if (Array.isArray(container)) return container;
+  
+  const lowerKey = childKey.toLowerCase();
+  const keys = Object.keys(container);
+  const foundKey = keys.find(k => k.toLowerCase() === lowerKey);
+  if (foundKey) return asArray(container[foundKey]);
+  
+  return [];
+}
+
+async function parseXMLResponse(xmlData: string): Promise<any> {
+  try {
+    return await parseStringPromise(xmlData, {
+      explicitArray: false,
+      ignoreAttrs: true,
+    });
+  } catch (e) {
+    console.error("Error parsing XML:", e);
+    return null;
+  }
+}
+
 function safeNumber(val: any, decimals: number = 2): number {
   const num = parseFloat(val || 0);
   return isNaN(num) ? 0 : parseFloat(num.toFixed(decimals));
 }
 
-// Parsea fechas. Si viene null o vacío, devuelve null (o fecha actual si es crítico)
 function parsearFechaAPI(fechaStr: string): Date {
   if (!fechaStr) return new Date();
   const d = new Date(fechaStr);
   return isNaN(d.getTime()) ? new Date() : d;
+}
+
+function parsearFechaCupon(fechaStr: string): Date | null {
+  if (!fechaStr) return null;
+  try {
+    const parts = fechaStr.match(/(\d{2})\/(\d{2})\/(\d{4})\s(\d{2}):(\d{2}):(\d{2})/);
+    if (parts) {
+      const isoString = `${parts[3]}-${parts[2]}-${parts[1]}T${parts[4]}:${parts[5]}:${parts[6]}`;
+      return new Date(isoString);
+    }
+    const d = new Date(fechaStr);
+    return isNaN(d.getTime()) ? null : d;
+  } catch (e) {
+    return null;
+  }
 }
 
 export async function sincronizarFacturas(fechaInicio: string, fechaFin: string) {
@@ -25,12 +70,12 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
 
   try {
     const url = `${BASE_URL}/Facturacion/GetFacturasVenta?desdeFecha=${fechaInicio}&hastaFecha=${fechaFin}`;
-    console.log(`GET Facturas: ${url}`);
+    console.log(`GET Facturas (XML): ${url}`);
     
     const response = await fetch(url, {
       headers: { 
         "Authorization": `Bearer ${TOKEN}`,
-        "Content-Type": "application/json"
+        "Accept": "application/xml"
       },
     });
 
@@ -39,17 +84,36 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
       return { registros: 0, insertados: 0, actualizados: 0 };
     }
 
-    const facturas = await response.json() as any[];
+    const xmlText = await response.text();
+    const result = await parseXMLResponse(xmlText);
 
-    if (!Array.isArray(facturas) || facturas.length === 0) {
-      console.log(`0 facturas encontradas.`);
+    const rawData = result?.ArrayOfFacturasVenta?.FacturasVenta;
+    
+    if (!rawData) {
+      console.log(`0 facturas encontradas (XML vacío o estructura diferente).`);
       return { registros: 0, insertados: 0, actualizados: 0 };
     }
 
+    const facturas = asArray(rawData);
     console.log(`Procesando ${facturas.length} facturas...`);
 
-    for (const f of facturas) {
+    for (const fRaw of facturas) {
       registrosTotal++;
+
+      const cabecera = fRaw.cabecera || fRaw.Cabecera || {};
+      const containerDetalle = fRaw.detalle || fRaw.Detalle;
+      const itemsDetalle = getArrayFromContainer(containerDetalle, 'Detalle');
+      const itemValores = fRaw.valores || fRaw.Valores || {};
+      const containerCupones = fRaw.cuponesTarjetas || fRaw.CuponesTarjetas || 
+                               itemValores.cuponesTarjetas || itemValores.CuponesTarjetas;
+      const itemsCupones = getArrayFromContainer(containerCupones, 'Tarjetas');
+
+      const f = {
+        ...cabecera,
+        Valores: itemValores,
+        Detalle: itemsDetalle,
+        Cupones: itemsCupones,
+      };
 
       const idFacturaReal = f.IdFactura || f.Numero || 0;
 
@@ -69,7 +133,8 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
         DO UPDATE SET
           fecha = EXCLUDED.fecha,
           razon_social = EXCLUDED.razon_social,
-          total = EXCLUDED.total
+          total = EXCLUDED.total,
+          id_movimiento_fac = EXCLUDED.id_movimiento_fac
         RETURNING id_factura, (xmax = 0) AS insertado`,
         [
           f.TipoComprobante || "FAC",
@@ -106,17 +171,20 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
       );
 
       const dbIdFactura = resultCab.rows[0].id_factura;
-      if (resultCab.rows[0].insertado) insertadosTotal++;
+      const esNuevo = resultCab.rows[0].insertado;
+
+      if (esNuevo) insertadosTotal++;
       else actualizadosTotal++;
 
-      const val = f.Valores || {}; 
+      const val = f.Valores; 
       await pool.query(
         `INSERT INTO facturas_venta_valores (
           id_factura, efectivo, cheques_propios, cheques_terceros,
           tarjetas, transferencias, debito_automatico
         ) VALUES ($1,$2,$3,$4,$5,$6,$7)
         ON CONFLICT (id_factura) DO UPDATE SET
-          efectivo = EXCLUDED.efectivo`,
+          efectivo = EXCLUDED.efectivo,
+          tarjetas = EXCLUDED.tarjetas`,
         [
           dbIdFactura,
           safeNumber(val.Efectivo),
@@ -128,10 +196,22 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
         ]
       );
 
-      const detalles = Array.isArray(f.Detalle) ? f.Detalle : [];
+      const totalCuponesReal = f.Cupones.reduce((sum: number, c: any) => sum + safeNumber(c.TotalTarjetas), 0);
+      const accion = esNuevo ? "INSERTADO" : "ACTUALIZADO";
+      const infoComprobante = `${f.TipoComprobante} ${f.PuntoVenta}-${f.Numero}`;
+      console.log(`[${accion}] ${infoComprobante} | ID DB: ${dbIdFactura}`);
       
+      if(safeNumber(val.Efectivo) > 0 || safeNumber(val.Tarjetas) > 0 || totalCuponesReal > 0) {
+         console.log(`   -> [Valores] Efec: ${safeNumber(val.Efectivo)} | Tarj(XML): ${safeNumber(val.Tarjetas)} | Cup(Calc): ${totalCuponesReal}`);
+      }
+
+      
+      // Limpiar detalles viejos de esta factura para evitar duplicados y errores
+      await pool.query(`DELETE FROM facturas_venta_detalle WHERE id_factura = $1`, [dbIdFactura]);
+
+      const detalles = f.Detalle;
       for (const d of detalles) {
-        await pool.query(
+        const resDet = await pool.query(
           `INSERT INTO facturas_venta_detalle (
             id_movimientos_detalle_fac, id_factura, cantidad, codigo_articulo, descripcion_articulo,
             id_grupo_articulo, descripcion_grupo, precio, iva_unitario,
@@ -142,8 +222,7 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
             alicuota_iva, total_renglon
           ) VALUES (
             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25
-          )
-          ON CONFLICT DO NOTHING`,
+          )`,
           [
             parseInt(d.IdMovimientosDetalleFac || 0),
             dbIdFactura,
@@ -172,12 +251,43 @@ export async function sincronizarFacturas(fechaInicio: string, fechaFin: string)
             safeNumber(d.TotalRenglon),
           ]
         );
+
+        if (resDet.rowCount && resDet.rowCount > 0) {
+            console.log(`      -> [Detalle] ${d.DescripcionArticulo?.trim()} (Cant: ${d.Cantidad}) | $${d.TotalRenglon}`);
+        }
+      }
+
+      // Limpiar detalles viejos de esta facturas_venta_cupones_tarjeta para evitar duplicados y errores
+      await pool.query(`DELETE FROM facturas_venta_cupones_tarjeta WHERE id_factura = $1`, [dbIdFactura]);
+
+      for (const c of f.Cupones) {
+        const resCup = await pool.query(
+          `INSERT INTO facturas_venta_cupones_tarjeta (
+            id_factura, id_tarjeta, tarjeta, caja_tarjeta, numero_cupon,
+            fecha_cupon, total_tarjetas, numero_lote, numero_tarjeta, codigo_aprobacion
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            dbIdFactura,
+            parseInt(c.idTarjeta || 0),
+            c.Tarjeta || null,
+            c.CajaTarjeta || null,
+            c.NumeroCupon || null,
+            parsearFechaCupon(c.FechaCupon), 
+            safeNumber(c.TotalTarjetas),
+            c.NumeroLote || null,
+            c.NumeroTarjeta || null,
+            c.CodigoAprobacion || null
+          ]
+        );
+        
+        if (resCup.rowCount && resCup.rowCount > 0) {
+            console.log(`      -> [Cupón NEW] ${c.Tarjeta} ($${c.TotalTarjetas})`);
+        }
       }
     }
 
     const duracion = (Date.now() - inicio) / 1000;
     
-    // Log Success
     await pool.query(
       `INSERT INTO logs_ingesta (fecha, registros_insertados, estado, mensaje_error)
        VALUES (NOW(), $1, 'EXITO - FACTURAS', 'Insertados: ${insertadosTotal}, Actualizados: ${actualizadosTotal}, Duración: ${duracion.toFixed(1)}s')`,
