@@ -203,3 +203,145 @@ export const getReporteMensual = async (req: Request, res: Response): Promise<vo
     });
   }
 };
+
+// Facturación diaria por cliente
+export const getFacturacionDiariaCliente = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM "facturacion_diaria_cliente"');
+    // Normalizar y filtrar los campos
+    const normalizados = rows.map(row => ({
+      fecha: row.fecha,
+      razon_social: row.razon_social,
+      localidad: row.localidad,
+      tipo_pago: row.tipo_pago,
+      neto_gravado: Number(row.neto_gravado) || 0,
+      impuesto_interno: Number(row.impuesto_interno) || 0,
+      tasas: Number(row.tasas) || 0,
+      tasas_viales: Number(row.tasas_viales) || 0,
+      juristiccion: Number(row.juristiccion) || 0,
+      percepcion_iibb: Number(row.percepcion_iibb) || 0,
+      percepcion_iva: Number(row.percepcion_iva) || 0,
+      otras_percepciones: Number(row.otras_percepciones) || 0,
+      total: Number(row.total) || 0
+    }));
+    // Log de los primeros 3 registros normalizados
+    console.log('Cliente normalizados:', normalizados.slice(0, 3));
+    res.json({ ok: true, data: normalizados });
+  } catch (error) {
+    res.status(500).json({ error: "Error al obtener facturación diaria cliente", detalle: (error as Error).message });
+  }
+};
+
+// Facturación diaria GNC
+export const getFacturacionDiariaGNC = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM "facturacion_diaria_GNC"');
+      console.log("🔍 [DEBUG] Primeros 3 registros de facturacion_diaria_GNC:", rows.slice(0, 3));
+    // Normaliza y asegura tipos
+    const data = rows.map((row: any) => ({
+      anio: row.anio,
+      mes_numero: row.mes_numero,
+      nombre_dia: row.nombre_dia,
+      fecha: row.fecha,
+      gnc: Number(row.gnc ?? 0),
+      gnc_ac: Number(row.gnc_ac ?? 0),
+      total_gnc_dinero: Number(row.total_gnc_dinero ?? 0)
+    }));
+    console.log("🔍 [DEBUG] Respuesta GNC normalizada:", data.slice(0, 3));
+    res.json({ ok: true, data });
+  } catch (error) {
+    console.error("❌ [DEBUG] Error en facturación diaria GNC:", (error as Error).message);
+    res.status(500).json({ error: "Error al obtener facturación diaria GNC", detalle: (error as Error).message });
+  }
+};
+
+
+
+// Facturación diaria líquidos
+export const getFacturacionDiariaLiquidos = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM "facturacion_diaria_liquidos"');
+    // Normalizar los campos numéricos
+    const normalizados = rows.map(row => ({
+      anio: row.anio,
+      mes_numero: row.mes_numero,
+      nombre_dia: row.nombre_dia,
+      fecha: row.fecha,
+      qn_ac: Number(row.qn_ac) || 0,
+      quantium_nafta: Number(row.quantium_nafta) || 0,
+      s_ac: Number(row.s_ac) || 0,
+      super: Number(row.super) || 0,
+      diesel_x10_liviano_ac: Number(row.diesel_x10_liviano_ac) || 0,
+      diesel_x10_liviano: Number(row.diesel_x10_liviano) || 0,
+      diesel_x10_pesado_ac: Number(row.diesel_x10_pesado_ac) || 0,
+      diesel_x10_pesado: Number(row.diesel_x10_pesado) || 0,
+      quantium_diesel_x10_liviano_ac: Number(row.quantium_diesel_x10_liviano_ac) || 0,
+      quantium_diesel_x10_liviano: Number(row.quantium_diesel_x10_liviano) || 0,
+      quantium_diesel_x10_pesado_ac: Number(row.quantium_diesel_x10_pesado_ac) || 0,
+      quantium_diesel_x10_pesado: Number(row.quantium_diesel_x10_pesado) || 0,
+      total_dinero_dia: Number(row.total_dinero_dia) || 0
+    }));
+    // Log de los primeros 3 registros normalizados
+    console.log('Liquidos normalizados:', normalizados.slice(0, 3));
+    res.json({ ok: true, data: normalizados });
+  } catch (error) {
+    res.status(500).json({ error: "Error al obtener facturación diaria líquidos", detalle: (error as Error).message });
+  }
+};
+
+// Facturación diaria otros
+export const getFacturacionDiariaOtros = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM "facturacion_diaria_otros"');
+    // Normalizar y filtrar los campos
+    const normalizados = rows.map(row => ({
+      anio: row.anio,
+      mes_numero: row.mes_numero,
+      nombre_dia: row.nombre_dia,
+      fecha: row.fecha,
+      eco_blue: Number(row.eco_blue) || 0,
+      lubricantes: Number(row.lubricantes) || 0,
+      otros: Number(row.otros) || 0,
+      total_otros_dinero: Number(row.total_otros_dinero) || 0
+    }));
+    // Log de los primeros 3 registros normalizados
+    console.log('Otros normalizados:', normalizados.slice(0, 3));
+    res.json({ ok: true, data: normalizados });
+  } catch (error) {
+    res.status(500).json({ error: "Error al obtener facturación diaria otros", detalle: (error as Error).message });
+  }
+};
+
+// Facturación diaria shop
+export const getFacturacionDiariaShop = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM "facturacion_diaria_shop"');
+    // Normalizar y filtrar los campos
+    const normalizados = rows.map(row => ({
+      anio: row.anio,
+      mes_numero: row.mes_numero,
+      nombre_dia: row.nombre_dia,
+      fecha: row.fecha,
+      cortesias_discriminado: Number(row.cortesias_discriminado) || 0,
+      total_comidas: Number(row.total_comidas) || 0,
+      total_liquidos: Number(row.total_liquidos) || 0,
+      total_kiosco: Number(row.total_kiosco) || 0,
+      total_venta_dia: Number(row.total_venta_dia) || 0
+    }));
+    // Log de los primeros 3 registros normalizados
+    console.log('Shop normalizados:', normalizados.slice(0, 3));
+    res.json({ ok: true, data: normalizados });
+  } catch (error) {
+    res.status(500).json({ error: "Error al obtener facturación diaria shop", detalle: (error as Error).message });
+  }
+};
+
+// Recibo diario por cliente
+export const getReciboDiarioCliente = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM recibo_diario_cliente');
+    res.json({ ok: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ error: "Error al obtener recibo diario cliente", detalle: (error as Error).message });
+  }
+};

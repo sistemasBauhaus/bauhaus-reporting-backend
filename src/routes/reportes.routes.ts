@@ -1,5 +1,15 @@
 import express from "express";
-import { getReporteMensual, getReporteSubdiario, getReporteUnidadesEmpresa } from "../controllers/reportes.controller";
+import { 
+  getReporteMensual, 
+  getReporteSubdiario, 
+  getReporteUnidadesEmpresa,
+  getFacturacionDiariaCliente,
+  getFacturacionDiariaGNC,
+  getFacturacionDiariaLiquidos,
+  getFacturacionDiariaOtros,
+  getFacturacionDiariaShop,
+  getReciboDiarioCliente
+} from "../controllers/reportes.controller";
 
 const router = express.Router();
 
@@ -49,6 +59,14 @@ router.get("/reportes", (req, res, next) => {
   });
 });
 
+// Endpoints para vistas de facturación y recibos diarios
+router.get("/reportes/facturacion-diaria-cliente", getFacturacionDiariaCliente);
+router.get("/reportes/facturacion-diaria-gnc", getFacturacionDiariaGNC);
+router.get("/reportes/facturacion-diaria-liquidos", getFacturacionDiariaLiquidos);
+router.get("/reportes/facturacion-diaria-otros", getFacturacionDiariaOtros);
+router.get("/reportes/facturacion-diaria-shop", getFacturacionDiariaShop);
+router.get("/reportes/recibo-diario-cliente", getReciboDiarioCliente);
+
 // Ruta de prueba para verificar que el router funciona
 router.get("/reportes/test", (req, res) => {
   console.log("🔍 [DEBUG] ⚠️ RUTA DE TEST /reportes/test ACCEDIDA ⚠️");
@@ -60,5 +78,11 @@ console.log("   - GET /api/reportes/subdiario");
 console.log("   - GET /api/reportes/mensual");
 console.log("   - GET /api/reportes?tipo=unidades-empresa");
 console.log("   - GET /api/reportes/test (ruta de prueba)");
+console.log("   - GET /api/reportes/facturacion-diaria-cliente");
+console.log("   - GET /api/reportes/facturacion-diaria-gnc");
+console.log("   - GET /api/reportes/facturacion-diaria-liquidos");
+console.log("   - GET /api/reportes/facturacion-diaria-otros");
+console.log("   - GET /api/reportes/facturacion-diaria-shop");
+console.log("   - GET /api/reportes/recibo-diario-cliente");
 
 export default router;

@@ -1,97 +1,65 @@
-// src/jobs/syncFacturacionJob.ts
-import cron from "node-cron";
 import { sincronizarFacturas } from "../services/facturas.service";
 import { sincronizarRecibos } from "../services/recibos.service";
+import cron from "node-cron";
 
-/**
- * Obtiene la hora actual en zona horaria de Argentina (UTC-3)
- */
-function obtenerHoraArgentina(): Date {
+function obtenerFechaArgentinaAPI(): string {
   const ahora = new Date();
   ahora.setHours(ahora.getHours() - 3);
-  return ahora;
-}
 
-/**
- * Convierte una fecha local de Argentina a formato ISO para la API
- */
-function formatearFechaParaAPI(fecha: Date, esFin: boolean = false): string {
-  const isoStr = fecha.toISOString().split(".")[0];
-  const sufijo = esFin ? ".999Z" : ".000Z";
-  return isoStr + sufijo;
-}
-
-/**
- * Cron job que se ejecuta cada hora para sincronizar facturas y recibos
- * Programación: cada hora (0 * * * *)
- * Sincroniza la última hora de datos
- */
-cron.schedule("0 * * * *", async () => {
-  console.log("⏰ Cron de facturación ejecutado:", new Date().toISOString());
-
-  // Obtener la última hora en hora de Argentina
-  const ahora = obtenerHoraArgentina();
-  const hace1Hora = new Date(ahora);
-  hace1Hora.setHours(hace1Hora.getHours() - 1);
+  const pad = (n: number) => n.toString().padStart(2, '0');
   
-  // Construir las fechas
-  const fechaInicio = formatearFechaParaAPI(hace1Hora, false);
-  const fechaFin = formatearFechaParaAPI(ahora, true);
+  const YYYY = ahora.getFullYear();
+  const MM = pad(ahora.getMonth() + 1);
+  const DD = pad(ahora.getDate());
+  
+  // YYYY-MM-DD
+  return `${YYYY}-${MM}-${DD}`;
+}
+
+// Se ejecuta en el minuto 5 de cada hora
+cron.schedule("5 * * * *", async () => {
+  // Calcular la fecha basándonos en la hora argentina
+  const fechaHoy = obtenerFechaArgentinaAPI();
+  
+  console.log("Cron de facturación iniciado:", new Date().toISOString());
+  console.log(`Sincronizando día completo (Hora ARG): ${fechaHoy}`);
 
   try {
-    console.log(`📥 Sincronizando última hora`);
-    console.log(`📅 Rango: ${fechaInicio} a ${fechaFin}`);
-
     // Ejecutar ambas sincronizaciones en paralelo
     const [resultFacturas, resultRecibos] = await Promise.all([
-      sincronizarFacturas(fechaInicio, fechaFin),
-      sincronizarRecibos(fechaInicio, fechaFin),
+      sincronizarFacturas(fechaHoy, fechaHoy),
+      sincronizarRecibos(fechaHoy, fechaHoy),
     ]);
 
-    console.log("✅ Sincronización automática completada");
+    console.log("Sincronización completada");
     console.log(`   - Facturas: ${resultFacturas.insertados} nuevas, ${resultFacturas.actualizados} actualizadas`);
     console.log(`   - Recibos: ${resultRecibos.insertados} nuevos, ${resultRecibos.actualizados} actualizados`);
   } catch (error) {
-    console.error("❌ Error en cron de facturación:", (error as Error).message);
+    console.error("Error en cron de facturación:", (error as Error).message);
   }
 });
 
-console.log("✅ Cron jobs de facturación configurados:");
-console.log("   - Cada hora: sincronización última hora");
+console.log("Cron jobs de facturación configurados (JSON + Hora Argentina)");
 
-/**
- * Función auxiliar para probar la sincronización sin esperar una hora
- * Llamar manualmente en tests o endpoints de prueba
- * Ej: POST /api/test/sync-manual
- */
 export async function sincronizacionManual() {
-  console.log("🔄 Ejecutando sincronización manual...", new Date().toISOString());
-
-  // Usar ayer (día cerrado) en lugar de hoy
-  const horaArgentina = obtenerHoraArgentina();
-  const ayer = new Date(horaArgentina);
-  ayer.setDate(ayer.getDate() - 1);
-  const fechaAyer = (ayer.toISOString().split("T")[0] || new Date().toISOString().split("T")[0]) as string;
+  console.log("Ejecutando sincronización manual...");
+  
+  // Calcular la fecha basándonos en la hora argentina
+  const fechaHoy = obtenerFechaArgentinaAPI();
 
   try {
-    console.log(`📥 Sincronizando día cerrado: ${fechaAyer}`);
-
     const [resultFacturas, resultRecibos] = await Promise.all([
-      sincronizarFacturas(fechaAyer, fechaAyer),
-      sincronizarRecibos(fechaAyer, fechaAyer),
+      sincronizarFacturas(fechaHoy, fechaHoy),
+      sincronizarRecibos(fechaHoy, fechaHoy),
     ]);
 
-    console.log("✅ Sincronización manual completada");
-    console.log(`   - Facturas: ${resultFacturas.insertados} nuevas, ${resultFacturas.actualizados} actualizadas`);
-    console.log(`   - Recibos: ${resultRecibos.insertados} nuevos, ${resultRecibos.actualizados} actualizados`);
-    
     return {
       ok: true,
-      message: "Sincronización completada",
+      message: "Sincronización manual completada",
       data: { resultFacturas, resultRecibos },
     };
   } catch (error) {
-    console.error("❌ Error en sincronización manual:", (error as Error).message);
+    console.error("Error en sincronización manual:", (error as Error).message);
     throw error;
   }
 }
