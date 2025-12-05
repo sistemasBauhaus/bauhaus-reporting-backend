@@ -1,97 +1,116 @@
-// src/jobs/syncFacturacionJob.ts
-import cron from "node-cron";
 import { sincronizarFacturas } from "../services/facturas.service";
 import { sincronizarRecibos } from "../services/recibos.service";
+import cron from "node-cron";
 
-/**
- * Obtiene la hora actual en zona horaria de Argentina (UTC-3)
- */
-function obtenerHoraArgentina(): Date {
-  const ahora = new Date();
-  ahora.setHours(ahora.getHours() - 3);
-  return ahora;
+function getArgentinaDates() {
+  const now = new Date();
+  const arString = now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" });
+  const todayAr = new Date(arString);
+
+  const yesterdayAr = new Date(todayAr);
+  yesterdayAr.setDate(todayAr.getDate() - 1);
+
+  return { yesterday: yesterdayAr, today: todayAr };
 }
 
-/**
- * Convierte una fecha local de Argentina a formato ISO para la API
- */
-function formatearFechaParaAPI(fecha: Date, esFin: boolean = false): string {
-  const isoStr = fecha.toISOString().split(".")[0];
-  const sufijo = esFin ? ".999Z" : ".000Z";
-  return isoStr + sufijo;
+// Format Date YYYY-MM-DD (Facturas)
+function formatDateISO(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-/**
- * Cron job que se ejecuta cada hora para sincronizar facturas y recibos
- * Programación: cada hora (0 * * * *)
- * Sincroniza la última hora de datos
- */
-cron.schedule("0 * * * *", async () => {
-  console.log("⏰ Cron de facturación ejecutado:", new Date().toISOString());
+// Format Date DD-MM-YYYY (Recibos)
+function formatDateCustom(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${day}-${month}-${year}`;
+}
 
-  // Obtener la última hora en hora de Argentina
-  const ahora = obtenerHoraArgentina();
-  const hace1Hora = new Date(ahora);
-  hace1Hora.setHours(hace1Hora.getHours() - 1);
+
+// Función para reintentar.
+async function withRetry(fn: Function, args: any[], contextName: string, maxRetries = 50) {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      attempt++;
+      return await fn(...args);
+    } catch (error) {
+      console.error(`[Intentando ${attempt}/${maxRetries}] Fallido ${contextName}: ${(error as Error).message}`);
+      if (attempt === maxRetries) {
+        console.error(`[Fatal] Se alcanzaron los reintentos máximos ${contextName}.`);
+        throw error;
+      }
+      await new Promise(res => setTimeout(res, 5000));
+    }
+  }
+}
+
+async function ejecutarSincronizacion() {
+  const { yesterday, today } = getArgentinaDates();
+
+  console.log("Iniciando trabajo de sincronización diaria (hora de Argentina)");
   
-  // Construir las fechas
-  const fechaInicio = formatearFechaParaAPI(hace1Hora, false);
-  const fechaFin = formatearFechaParaAPI(ahora, true);
+  const facturasInicio = formatDateISO(yesterday);
+  const facturasFin = formatDateISO(today);
+  const recibosInicio = formatDateCustom(yesterday);
+  const recibosFin = formatDateCustom(today);
+
+  console.log(`Fechas: Facturas [${facturasInicio} - ${facturasFin}] | Recibos [${recibosInicio} - ${recibosFin}]`);
 
   try {
-    console.log(`📥 Sincronizando última hora`);
-    console.log(`📅 Rango: ${fechaInicio} a ${fechaFin}`);
-
-    // Ejecutar ambas sincronizaciones en paralelo
-    const [resultFacturas, resultRecibos] = await Promise.all([
-      sincronizarFacturas(fechaInicio, fechaFin),
-      sincronizarRecibos(fechaInicio, fechaFin),
+    const results = await Promise.allSettled([
+      withRetry(sincronizarFacturas, [facturasInicio, facturasFin], "Facturas Service"),
+      withRetry(sincronizarRecibos, [recibosInicio, recibosFin], "Recibos Service")
     ]);
 
-    console.log("✅ Sincronización automática completada");
-    console.log(`   - Facturas: ${resultFacturas.insertados} nuevas, ${resultFacturas.actualizados} actualizadas`);
-    console.log(`   - Recibos: ${resultRecibos.insertados} nuevos, ${resultRecibos.actualizados} actualizados`);
+    const resFacturas = results[0];
+    const resRecibos = results[1];
+
+    if (resFacturas.status === 'fulfilled') {
+      console.log(`Facturas: ${resFacturas.value.insertados} new, ${resFacturas.value.actualizados} updated`);
+    } else {
+      console.error(`Facturas fallidas después de 50 intentos.`);
+    }
+
+    if (resRecibos.status === 'fulfilled') {
+      console.log(`Recibos: ${resRecibos.value.insertados} new, ${resRecibos.value.actualizados} updated`);
+    } else {
+      console.error(`Recibos falló después de 50 intentos.`);
+    }
+
+    console.log("Job Cycle finalizado.");
+
   } catch (error) {
-    console.error("❌ Error en cron de facturación:", (error as Error).message);
-  }
-});
-
-console.log("✅ Cron jobs de facturación configurados:");
-console.log("   - Cada hora: sincronización última hora");
-
-/**
- * Función auxiliar para probar la sincronización sin esperar una hora
- * Llamar manualmente en tests o endpoints de prueba
- * Ej: POST /api/test/sync-manual
- */
-export async function sincronizacionManual() {
-  console.log("🔄 Ejecutando sincronización manual...", new Date().toISOString());
-
-  // Usar ayer (día cerrado) en lugar de hoy
-  const horaArgentina = obtenerHoraArgentina();
-  const ayer = new Date(horaArgentina);
-  ayer.setDate(ayer.getDate() - 1);
-  const fechaAyer = (ayer.toISOString().split("T")[0] || new Date().toISOString().split("T")[0]) as string;
-
-  try {
-    console.log(`📥 Sincronizando día cerrado: ${fechaAyer}`);
-
-    const [resultFacturas, resultRecibos] = await Promise.all([
-      sincronizarFacturas(fechaAyer, fechaAyer),
-      sincronizarRecibos(fechaAyer, fechaAyer),
-    ]);
-
-    console.log("✅ Sincronización manual completada");
-    console.log(`   - Facturas: ${resultFacturas.insertados} nuevas, ${resultFacturas.actualizados} actualizadas`);
-    console.log(`   - Recibos: ${resultRecibos.insertados} nuevos, ${resultRecibos.actualizados} actualizados`);
-    
-    return {
-      ok: true,
-      message: "Sincronización completada",
-      data: { resultFacturas, resultRecibos },
-    };
-  } catch (error) {
-    console.error("❌ Error en sincronización manual:", (error as Error).message);
-    throw error;
+    console.error("Critical Job Error:", error);
   }
 }
+
+export async function sincronizacionManual() {
+  const { yesterday, today } = getArgentinaDates();
+
+  const facturasInicio = formatDateISO(yesterday);
+  const facturasFin = formatDateISO(today);
+  const recibosInicio = formatDateCustom(yesterday);
+  const recibosFin = formatDateCustom(today);
+
+  // Si falla uno, se generará un error en el controlador (lo cual es útil para HTTP 500).
+  const [resFacturas, resRecibos] = await Promise.all([
+    withRetry(sincronizarFacturas, [facturasInicio, facturasFin], "Facturas Service"),
+    withRetry(sincronizarRecibos, [recibosInicio, recibosFin], "Recibos Service")
+  ]);
+
+  return {
+    ok: true,
+    message: "Sincronización completada",
+    data: { resFacturas, resRecibos },
+  };
+}
+
+cron.schedule("0 0 * * *", () => {
+  ejecutarSincronizacion();
+}, {
+  timezone: "America/Argentina/Buenos_Aires"
+});
