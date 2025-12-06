@@ -1,6 +1,5 @@
 import { sincronizarFacturas } from "../services/facturas.service";
 import { sincronizarRecibos } from "../services/recibos.service";
-import cron from "node-cron";
 
 function getArgentinaDates() {
   const now = new Date();
@@ -50,8 +49,6 @@ async function withRetry(fn: Function, args: any[], contextName: string, maxRetr
 
 async function ejecutarSincronizacion() {
   const { yesterday, today } = getArgentinaDates();
-
-  console.log("Iniciando trabajo de sincronización diaria (hora de Argentina)");
   
   const facturasInicio = formatDateISO(yesterday);
   const facturasFin = formatDateISO(today);
@@ -109,8 +106,13 @@ export async function sincronizacionManual() {
   };
 }
 
-cron.schedule("0 0 * * *", () => {
+// 1 hora.
+const INTERVAL_MS = 60 * 60 * 1000;
+
+console.log("Iniciando sistema de cron jobs (Intervalo 10 mins)...");
+
+ejecutarSincronizacion();
+
+setInterval(() => {
   ejecutarSincronizacion();
-}, {
-  timezone: "America/Argentina/Buenos_Aires"
-});
+}, INTERVAL_MS);
