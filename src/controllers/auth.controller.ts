@@ -8,12 +8,14 @@ import { pool } from "../db/connection";
 // ===============================
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
   try {
+    const startTotal = Date.now();
     const { email, password } = req.body;
     if (!email || !password) {
       res.status(400).json({ ok: false, message: "Faltan email o password" });
       return;
     }
 
+    const startQuery = Date.now();
     // Consulta usuario, empresa, rol y permisos en una sola query
     const userFullQuery = `
       SELECT u.user_id, u.email, u.password_hash, u.nombre_usuario, u.activo,
@@ -30,6 +32,8 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       LIMIT 1
     `;
     const result = await pool.query(userFullQuery, [email]);
+    const endQuery = Date.now();
+    console.log(`[LOGIN][${email}] Tiempo consulta SQL: ${endQuery - startQuery} ms`);
     if (result.rowCount === 0) {
       res.status(401).json({ ok: false, message: "Usuario no encontrado" });
       return;
@@ -40,13 +44,17 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const startBcrypt = Date.now();
     // Validar password
     const validPassword = await bcrypt.compare(password, user.password_hash);
+    const endBcrypt = Date.now();
+    console.log(`[LOGIN][${email}] Tiempo bcrypt: ${endBcrypt - startBcrypt} ms`);
     if (!validPassword) {
       res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
       return;
     }
 
+    const startJWT = Date.now();
     // Generar JWT y responder
     const token = jwt.sign(
       {
@@ -61,6 +69,9 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       process.env.JWT_SECRET || "bauhaus_secret",
       { expiresIn: "12h" }
     );
+    const endJWT = Date.now();
+    console.log(`[LOGIN][${email}] Tiempo generación JWT: ${endJWT - startJWT} ms`);
+
     res.status(200).json({
       ok: true,
       user: {
@@ -74,7 +85,10 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       },
       token,
     });
+    const endTotal = Date.now();
+    console.log(`[LOGIN][${email}] Tiempo total login: ${endTotal - startTotal} ms`);
   } catch (error) {
+    console.error('[LOGIN] Error:', error);
     res.status(500).json({ ok: false, message: "Error en el servidor" });
   }
 };
