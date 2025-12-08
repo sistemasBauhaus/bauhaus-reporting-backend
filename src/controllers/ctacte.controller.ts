@@ -46,7 +46,9 @@ export const getRecibosEntreFechas = async (req: Request, res: Response): Promis
     const desdeFechaFormato = convertirFecha(desdeFecha as string);
     const hastaFechaFormato = convertirFecha(hastaFecha as string);
 
-    console.log(`📄 Obteniendo recibos desde ${desdeFechaFormato} hasta ${hastaFechaFormato}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📄 Obteniendo recibos desde ${desdeFechaFormato} hasta ${hastaFechaFormato}`);
+    }
 
     // Llamar a la API externa
     const url = `${BASE_URL}/CtaCte/GetRecibosEntreFechas?desdeFecha=${desdeFechaFormato}&hastaFecha=${hastaFechaFormato}`;
@@ -107,11 +109,15 @@ export const getRecibosEntreFechas = async (req: Request, res: Response): Promis
       };
     });
 
-    console.log(`✅ Se obtuvieron ${recibosMapeados.length} recibos`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`✅ Se obtuvieron ${recibosMapeados.length} recibos`);
+    }
 
     res.status(200).json(recibosMapeados);
   } catch (error) {
-    console.error("❌ Error en getRecibosEntreFechas:", (error as Error).message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ Error en getRecibosEntreFechas:", (error as Error).message);
+    }
     res.status(500).json({ 
       error: "Error al obtener recibos",
       detalle: (error as Error).message 

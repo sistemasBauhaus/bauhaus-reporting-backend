@@ -55,7 +55,9 @@ async function ejecutarSincronizacion() {
   const recibosInicio = formatDateCustom(yesterday);
   const recibosFin = formatDateCustom(today);
 
-  console.log(`Fechas: Facturas [${facturasInicio} - ${facturasFin}] | Recibos [${recibosInicio} - ${recibosFin}]`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Fechas: Facturas [${facturasInicio} - ${facturasFin}] | Recibos [${recibosInicio} - ${recibosFin}]`);
+  }
 
   try {
     const results = await Promise.allSettled([
@@ -67,18 +69,24 @@ async function ejecutarSincronizacion() {
     const resRecibos = results[1];
 
     if (resFacturas.status === 'fulfilled') {
-      console.log(`Facturas: ${resFacturas.value.insertados} new, ${resFacturas.value.actualizados} updated`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Facturas: ${resFacturas.value.insertados} new, ${resFacturas.value.actualizados} updated`);
+      }
     } else {
       console.error(`Facturas fallidas después de 50 intentos.`);
     }
 
     if (resRecibos.status === 'fulfilled') {
-      console.log(`Recibos: ${resRecibos.value.insertados} new, ${resRecibos.value.actualizados} updated`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`Recibos: ${resRecibos.value.insertados} new, ${resRecibos.value.actualizados} updated`);
+      }
     } else {
       console.error(`Recibos falló después de 50 intentos.`);
     }
 
-    console.log("Job Cycle finalizado.");
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("Job Cycle finalizado.");
+    }
 
   } catch (error) {
     console.error("Critical Job Error:", error);
@@ -109,7 +117,9 @@ export async function sincronizacionManual() {
 // 1 hora.
 const INTERVAL_MS = 60 * 60 * 1000;
 
-console.log("Iniciando sistema de cron jobs (Intervalo 10 mins)...");
+if (process.env.NODE_ENV !== 'production') {
+  console.log("Iniciando sistema de cron jobs (Intervalo 10 mins)...");
+}
 
 ejecutarSincronizacion();
 

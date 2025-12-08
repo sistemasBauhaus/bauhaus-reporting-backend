@@ -33,7 +33,9 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     `;
     const result = await pool.query(userFullQuery, [email]);
     const endQuery = Date.now();
-    console.log(`[LOGIN][${email}] Tiempo consulta SQL: ${endQuery - startQuery} ms`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[LOGIN][${email}] Tiempo consulta SQL: ${endQuery - startQuery} ms`);
+    }
     if (result.rowCount === 0) {
       res.status(401).json({ ok: false, message: "Usuario no encontrado" });
       return;
@@ -48,7 +50,9 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     // Validar password
     const validPassword = await bcrypt.compare(password, user.password_hash);
     const endBcrypt = Date.now();
-    console.log(`[LOGIN][${email}] Tiempo bcrypt: ${endBcrypt - startBcrypt} ms`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[LOGIN][${email}] Tiempo bcrypt: ${endBcrypt - startBcrypt} ms`);
+    }
     if (!validPassword) {
       res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
       return;
@@ -70,7 +74,9 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: "12h" }
     );
     const endJWT = Date.now();
-    console.log(`[LOGIN][${email}] Tiempo generación JWT: ${endJWT - startJWT} ms`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[LOGIN][${email}] Tiempo generación JWT: ${endJWT - startJWT} ms`);
+    }
 
     res.status(200).json({
       ok: true,
@@ -86,9 +92,13 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       token,
     });
     const endTotal = Date.now();
-    console.log(`[LOGIN][${email}] Tiempo total login: ${endTotal - startTotal} ms`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[LOGIN][${email}] Tiempo total login: ${endTotal - startTotal} ms`);
+    }
   } catch (error) {
-    console.error('[LOGIN] Error:', error);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[LOGIN] Error:', error);
+    }
     res.status(500).json({ ok: false, message: "Error en el servidor" });
   }
 };

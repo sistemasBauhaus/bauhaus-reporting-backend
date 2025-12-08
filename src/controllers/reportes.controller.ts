@@ -9,10 +9,18 @@ export const getReporteSubdiario = async (req: Request, res: Response): Promise<
   try {
     const { fechaInicio, fechaFin } = req.query;
 
-    console.log("🔍 [DEBUG] getReporteSubdiario - Inicio");
-    console.log("🔍 [DEBUG] Query params recibidos:", { fechaInicio, fechaFin });
-    console.log("🔍 [DEBUG] URL completa:", req.url);
-    console.log("🔍 [DEBUG] Método HTTP:", req.method);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] getReporteSubdiario - Inicio");
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] Query params recibidos:", { fechaInicio, fechaFin });
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] URL completa:", req.url);
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] Método HTTP:", req.method);
+    }
 
     const query = `
       SELECT
@@ -37,23 +45,41 @@ export const getReporteSubdiario = async (req: Request, res: Response): Promise<
     `;
 
     const params = [fechaInicio || null, fechaFin || null];
-    console.log("🔍 [DEBUG] Parámetros de consulta SQL:", params);
-    console.log("🔍 [DEBUG] Ejecutando consulta SQL...");
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] Parámetros de consulta SQL:", params);
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] Ejecutando consulta SQL...");
+    }
 
     const { rows } = await pool.query(query, params);
     
-    console.log("🔍 [DEBUG] Consulta ejecutada exitosamente");
-    console.log("🔍 [DEBUG] Número de registros obtenidos:", rows.length);
-    console.log("🔍 [DEBUG] Primeros 3 registros (muestra):", rows.slice(0, 3));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] Consulta ejecutada exitosamente");
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] Número de registros obtenidos:", rows.length);
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] Primeros 3 registros (muestra):", rows.slice(0, 3));
+    }
 
     const response = { ok: true, data: rows };
-    console.log("🔍 [DEBUG] Enviando respuesta. Total registros:", rows.length);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] Enviando respuesta. Total registros:", rows.length);
+    }
     
     res.status(200).json(response);
-    console.log("✅ [DEBUG] Respuesta enviada exitosamente");
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("✅ [DEBUG] Respuesta enviada exitosamente");
+    }
   } catch (error) {
-    console.error("❌ [DEBUG] Error en reporte subdiario:", (error as Error).message);
-    console.error("❌ [DEBUG] Stack trace:", (error as Error).stack);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ [DEBUG] Error en reporte subdiario:", (error as Error).message);
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ [DEBUG] Stack trace:", (error as Error).stack);
+    }
     res.status(500).json({ 
       error: "Error al obtener reporte subdiario",
       detalle: (error as Error).message 

@@ -4,7 +4,9 @@ import { pool } from "../db/connection";
 // 🔹 Endpoint principal existente
 export const getPcMensual = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log("📅 Filtro recibido:", req.query);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("📅 Filtro recibido:", req.query);
+    }
 
     let { fechaInicio, fechaFin } = req.query;
 
@@ -14,7 +16,9 @@ export const getPcMensual = async (req: Request, res: Response): Promise<void> =
       const primerDiaMes = new Date(now.getFullYear(), now.getMonth(), 1);
       fechaInicio = primerDiaMes.toISOString().split("T")[0];
       fechaFin = now.toISOString().split("T")[0];
-      console.log(`📅 No se pasaron fechas, usando mes actual: ${fechaInicio} a ${fechaFin}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📅 No se pasaron fechas, usando mes actual: ${fechaInicio} a ${fechaFin}`);
+      }
     }
 
     const { rows } = await pool.query(
@@ -53,7 +57,9 @@ export const getPcMensual = async (req: Request, res: Response): Promise<void> =
 
     res.status(200).json({ ok: true, data });
   } catch (error) {
-    console.error("❌ Error al obtener PC Mensual:", (error as Error).message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ Error al obtener PC Mensual:", (error as Error).message);
+    }
     res.status(500).json({ ok: false, error: "Error al obtener PC Mensual" });
   }
 };
@@ -69,7 +75,9 @@ export const getPcResumenMensual = async (req: Request, res: Response): Promise<
       const primerDiaMes = new Date(now.getFullYear(), now.getMonth(), 1);
       fechaInicio = primerDiaMes.toISOString().split("T")[0];
       fechaFin = now.toISOString().split("T")[0];
-      console.log(`📅 No se pasaron fechas, usando mes actual: ${fechaInicio} a ${fechaFin}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📅 No se pasaron fechas, usando mes actual: ${fechaInicio} a ${fechaFin}`);
+      }
     }
 
     const query = `
@@ -105,7 +113,9 @@ export const getPcResumenMensual = async (req: Request, res: Response): Promise<
 
     res.status(200).json({ ok: true, data });
   } catch (error) {
-    console.error("❌ Error al obtener resumen mensual:", (error as Error).message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ Error al obtener resumen mensual:", (error as Error).message);
+    }
     res.status(500).json({ ok: false, error: "Error al obtener resumen mensual" });
   }
 };

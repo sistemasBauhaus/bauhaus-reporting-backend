@@ -39,20 +39,24 @@ async function start() {
   app.use(express.json());
 
   // 🔹 Middleware de logging para todas las peticiones
-  app.use((req, res, next) => {
-    console.log("📥 [DEBUG] ========================================");
-    console.log("📥 [DEBUG] Petición recibida");
-    console.log("📥 [DEBUG] Método:", req.method);
-    console.log("📥 [DEBUG] URL:", req.url);
-    console.log("📥 [DEBUG] Path:", req.path);
-    console.log("📥 [DEBUG] Query:", req.query);
-    console.log("📥 [DEBUG] Body:", req.body);
-    console.log("📥 [DEBUG] ========================================");
-    next();
-  });
+  if (process.env.NODE_ENV !== 'production') {
+    app.use((req, res, next) => {
+      console.log("📥 [DEBUG] ========================================");
+      console.log("📥 [DEBUG] Petición recibida");
+      console.log("📥 [DEBUG] Método:", req.method);
+      console.log("📥 [DEBUG] URL:", req.url);
+      console.log("📥 [DEBUG] Path:", req.path);
+      console.log("📥 [DEBUG] Query:", req.query);
+      console.log("📥 [DEBUG] Body:", req.body);
+      console.log("📥 [DEBUG] ========================================");
+      next();
+    });
+  }
 
   // 🔹 Montar rutas de API
-  console.log("🔍 [DEBUG] Registrando rutas de API...");
+  if (process.env.NODE_ENV !== 'production') {
+    console.log("🔍 [DEBUG] Registrando rutas de API...");
+  }
   // Rutas de usuarios, empresas, roles, permisos, etc.
   const userRoutes = require('./routes/user.routes').default;
   app.use('/api', userRoutes);
@@ -65,7 +69,9 @@ async function start() {
   app.use('/api', facturacionRoutes);
   app.use('/api', ctacteRoutes);
   app.use('/api/tanques', tanquesRoutes);
-  console.log("✅ [DEBUG] Todas las rutas de API registradas");
+  if (process.env.NODE_ENV !== 'production') {
+    console.log("✅ [DEBUG] Todas las rutas de API registradas");
+  }
 
   // 🔹 Endpoint raíz
   app.get('/', (_req, res) => {
@@ -82,7 +88,9 @@ async function start() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+    }
   });
 }
 

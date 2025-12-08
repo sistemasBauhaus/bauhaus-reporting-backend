@@ -26,7 +26,9 @@ export const syncFacturas = async (req: Request, res: Response): Promise<void> =
     const fechaFinStr = normalizeQuery(fechaFin, fechaInicioStr || defaultFecha);
 
     if (!fechaInicio || !fechaFin) {
-      console.log(`📅 No se pasaron fechas, usando día cerrado (ayer): ${fechaInicioStr}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📅 No se pasaron fechas, usando día cerrado (ayer): ${fechaInicioStr}`);
+      }
     }
 
     const resultado = await sincronizarFacturas(fechaInicioStr, fechaFinStr);
@@ -37,7 +39,9 @@ export const syncFacturas = async (req: Request, res: Response): Promise<void> =
       data: resultado,
     });
   } catch (error) {
-    console.error("❌ Error al sincronizar facturas:", (error as Error).message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ Error al sincronizar facturas:", (error as Error).message);
+    }
     res.status(500).json({
       ok: false,
       error: "Error al sincronizar facturas",
@@ -67,7 +71,9 @@ export const syncRecibos = async (req: Request, res: Response): Promise<void> =>
     const fechaFinStr = normalizeQuery(fechaFin, fechaInicioStr || defaultFecha);
 
     if (!fechaInicio || !fechaFin) {
-      console.log(`📅 No se pasaron fechas, usando día cerrado (ayer): ${fechaInicioStr}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📅 No se pasaron fechas, usando día cerrado (ayer): ${fechaInicioStr}`);
+      }
     }
 
     const resultado = await sincronizarRecibos(fechaInicioStr, fechaFinStr);
@@ -78,7 +84,9 @@ export const syncRecibos = async (req: Request, res: Response): Promise<void> =>
       data: resultado,
     });
   } catch (error) {
-    console.error("❌ Error al sincronizar recibos:", (error as Error).message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ Error al sincronizar recibos:", (error as Error).message);
+    }
     res.status(500).json({
       ok: false,
       error: "Error al sincronizar recibos",
@@ -107,7 +115,9 @@ export const syncFacturacionCompleta = async (req: Request, res: Response): Prom
     const fechaInicioStr = normalizeQuery(fechaInicio, defaultFecha);
     const fechaFinStr = normalizeQuery(fechaFin, fechaInicioStr || defaultFecha);
 
-    console.log(`🔄 Iniciando sincronización completa desde ${fechaInicioStr} hasta ${fechaFinStr}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🔄 Iniciando sincronización completa desde ${fechaInicioStr} hasta ${fechaFinStr}`);
+    }
 
     const [resultFacturas, resultRecibos] = await Promise.all([
       sincronizarFacturas(fechaInicioStr, fechaFinStr),
@@ -123,7 +133,9 @@ export const syncFacturacionCompleta = async (req: Request, res: Response): Prom
       },
     });
   } catch (error) {
-    console.error("❌ Error en sincronización completa:", (error as Error).message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ Error en sincronización completa:", (error as Error).message);
+    }
     res.status(500).json({
       ok: false,
       error: "Error en sincronización completa",
@@ -141,14 +153,18 @@ export const syncHistoria = async (req: Request, res: Response): Promise<void> =
     const fechaInicio = "2020-01-01";
     const fechaFin = (new Date().toISOString().split("T")[0] || new Date().toISOString().split("T")[0]) as string;
 
-    console.log(`📚 Iniciando descarga de historia desde ${fechaInicio} hasta ${fechaFin}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📚 Iniciando descarga de historia desde ${fechaInicio} hasta ${fechaFin}`);
+    }
 
     // Dividir en períodos mensuales para evitar timeouts
     const periodos = generarPeriodosMensuales(fechaInicio, fechaFin);
     const resultados = [];
 
     for (const periodo of periodos) {
-      console.log(`📅 Procesando período: ${periodo.inicio} - ${periodo.fin}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📅 Procesando período: ${periodo.inicio} - ${periodo.fin}`);
+      }
 
       const [resultFacturas, resultRecibos] = await Promise.all([
         sincronizarFacturas(periodo.inicio, periodo.fin),
@@ -172,7 +188,9 @@ export const syncHistoria = async (req: Request, res: Response): Promise<void> =
       data: resultados,
     });
   } catch (error) {
-    console.error("❌ Error al descargar historia:", (error as Error).message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ Error al descargar historia:", (error as Error).message);
+    }
     res.status(500).json({
       ok: false,
       error: "Error al descargar historia",
@@ -244,7 +262,9 @@ export const getLogs = async (req: Request, res: Response): Promise<void> => {
       data: rows,
     });
   } catch (error) {
-    console.error("❌ Error al obtener logs:", (error as Error).message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ Error al obtener logs:", (error as Error).message);
+    }
     res.status(500).json({
       ok: false,
       error: "Error al obtener logs",

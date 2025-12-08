@@ -32,7 +32,9 @@ export const getHistoricoTanquePorMes = async (req: Request, res: Response) => {
       }
     } catch (error) {
       // Si falla un día, lo omite
-      console.error(`❌ [ERROR] Histórico tanque ${idTanque} fecha ${fecha}:`, (error as Error).message);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error(`❌ [ERROR] Histórico tanque ${idTanque} fecha ${fecha}:`, (error as Error).message);
+      }
     }
   }
   res.json(resultados);
@@ -49,7 +51,9 @@ export const getInformacionHistoricaTanque = async (req: Request, res: Response)
       params: { idTanque, fecha }
     });
     const data = response.data;
-    console.log("🔍 [DEBUG] Respuesta API externa (histórico):", data);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] Respuesta API externa (histórico):", data);
+    }
     // Filtrar por producto válido
     const PRODUCTOS_VALIDOS = [
       'NAFTA SUPER',
@@ -91,7 +95,9 @@ export const getNivelesTanques = async (req: Request, res: Response) => {
     const tanquesFiltrados = tanques.filter((tanque: any) => 
       PRODUCTOS_VALIDOS.includes(tanque.articulo?.descripcion?.toUpperCase() || '')
     );
-    console.log("🔍 [DEBUG] Tanques filtrados:", tanquesFiltrados.map((t: any) => ({ id: t.idTanque, producto: t.articulo.descripcion })));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔍 [DEBUG] Tanques filtrados:", tanquesFiltrados.map((t: any) => ({ id: t.idTanque, producto: t.articulo.descripcion })));
+    }
 
     const resultados = [];
     for (const tanque of tanquesFiltrados) {
@@ -110,11 +116,15 @@ export const getNivelesTanques = async (req: Request, res: Response) => {
           fecha_actualizacion: info.fechaHoraMedicion
         });
       } catch (err) {
-        console.error(`❌ [ERROR] Tanque ${tanque.idTanque} (${tanque.articulo.descripcion}):`, (err as Error).message);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error(`❌ [ERROR] Tanque ${tanque.idTanque} (${tanque.articulo.descripcion}):`, (err as Error).message);
+        }
       }
     }
 
-    console.log("🔹 Respuesta niveles tanques:", resultados);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔹 Respuesta niveles tanques:", resultados);
+    }
     res.json(resultados);
   } catch (error) {
     res.status(500).json({ error: 'Error consultando la API externa', detalle: (error as Error).message });

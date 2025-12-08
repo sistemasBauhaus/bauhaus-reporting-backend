@@ -46,7 +46,9 @@ export const getFacturasVenta = async (req: Request, res: Response): Promise<voi
     const desdeFechaFormato = convertirFecha(desdeFecha as string);
     const hastaFechaFormato = convertirFecha(hastaFecha as string);
 
-    console.log(`📄 Obteniendo facturas de venta desde ${desdeFechaFormato} hasta ${hastaFechaFormato}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📄 Obteniendo facturas de venta desde ${desdeFechaFormato} hasta ${hastaFechaFormato}`);
+    }
 
     // Llamar a la API externa
     const url = `${BASE_URL}/Facturacion/GetFacturasVenta?desdeFecha=${desdeFechaFormato}&hastaFecha=${hastaFechaFormato}`;
@@ -91,11 +93,15 @@ export const getFacturasVenta = async (req: Request, res: Response): Promise<voi
       NombreCliente: factura.NombreCliente || "Sin nombre"
     }));
 
-    console.log(`✅ Se obtuvieron ${facturasMapeadas.length} facturas de venta`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`✅ Se obtuvieron ${facturasMapeadas.length} facturas de venta`);
+    }
 
     res.status(200).json(facturasMapeadas);
   } catch (error) {
-    console.error("❌ Error en getFacturasVenta:", (error as Error).message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.error("❌ Error en getFacturasVenta:", (error as Error).message);
+    }
     res.status(500).json({ 
       error: "Error al obtener facturas de venta",
       detalle: (error as Error).message 
