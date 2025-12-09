@@ -1,6 +1,13 @@
 import { sincronizarFacturas } from "../services/facturas.service";
 import { sincronizarRecibos } from "../services/recibos.service";
 
+function isoToCustomFormat(isoDate: string): string {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-"); // [YYYY, MM, DD]
+  if (parts.length !== 3) return isoDate;
+  return `${parts[2]}-${parts[1]}-${parts[0]}`;
+}
+
 function getArgentinaDates() {
   const now = new Date();
   const arString = now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" });
@@ -93,15 +100,32 @@ async function ejecutarSincronizacion() {
   }
 }
 
-export async function sincronizacionManual() {
-  const { yesterday, today } = getArgentinaDates();
+export async function sincronizacionManual(manualInicio?: string, manualFin?: string) {
+  let facturasInicio: string;
+  let facturasFin: string;
+  let recibosInicio: string;
+  let recibosFin: string;
 
-  const facturasInicio = formatDateISO(yesterday);
-  const facturasFin = formatDateISO(today);
-  const recibosInicio = formatDateCustom(yesterday);
-  const recibosFin = formatDateCustom(today);
+  if (manualInicio && manualFin) {
+    console.log(`Sincronización Manual Solicitada: ${manualInicio} a ${manualFin}`);
+    
+    // Facturas espera YYYY-MM-DD (Directo)
+    facturasInicio = manualInicio;
+    facturasFin = manualFin;
 
-  // Si falla uno, se generará un error en el controlador (lo cual es útil para HTTP 500).
+    // Recibos espera DD-MM-YYYY (Convertir)
+    recibosInicio = isoToCustomFormat(manualInicio);
+    recibosFin = isoToCustomFormat(manualFin);
+  } else {
+    // Caso Automático (o sin parametros): Usar lógica de "Ayer"
+    const { yesterday, today } = getArgentinaDates();
+    
+    facturasInicio = formatDateISO(yesterday);
+    facturasFin = formatDateISO(today);
+    recibosInicio = formatDateCustom(yesterday);
+    recibosFin = formatDateCustom(today);
+  }
+
   const [resFacturas, resRecibos] = await Promise.all([
     withRetry(sincronizarFacturas, [facturasInicio, facturasFin], "Facturas Service"),
     withRetry(sincronizarRecibos, [recibosInicio, recibosFin], "Recibos Service")
@@ -110,18 +134,18 @@ export async function sincronizacionManual() {
   return {
     ok: true,
     message: "Sincronización completada",
+    fechas: {
+       facturas: { inicio: facturasInicio, fin: facturasFin },
+       recibos: { inicio: recibosInicio, fin: recibosFin }
+    },
     data: { resFacturas, resRecibos },
   };
 }
 
-// 1 hora.
+// 1 Hora.
 const INTERVAL_MS = 60 * 60 * 1000;
 
-if (process.env.NODE_ENV !== 'production') {
-  console.log("Iniciando sistema de cron jobs (Intervalo 10 mins)...");
-}
-
-ejecutarSincronizacion();
+console.log("Iniciando sistema de cron jobs (Intervalo 1 hora)...");
 
 setInterval(() => {
   ejecutarSincronizacion();
