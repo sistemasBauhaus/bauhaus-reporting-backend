@@ -1,4 +1,3 @@
-// src/controllers/facturas.controller.ts
 import { Request, Response } from "express";
 import { sincronizarFacturas } from "../services/facturas.service";
 import { sincronizarRecibos } from "../services/recibos.service";
@@ -6,42 +5,45 @@ import { sincronizarRecibos } from "../services/recibos.service";
 /**
  * Endpoint para sincronizar facturas manualmente
  * GET/POST /api/facturas/sync?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD
+ * Nota: El servicio de Facturas acepta formato YYYY-MM-DD, por lo que pasamos los strings directos.
  */
 export const syncFacturas = async (req: Request, res: Response): Promise<void> => {
   try {
     const { fechaInicio, fechaFin } = req.query;
 
-    // Normalizar valores de query a strings (pueden venir como string | string[] | undefined)
+    // Normalizar valores
     const normalizeQuery = (val: any, fallback: string): string => {
       const v = Array.isArray(val) ? val[0] : typeof val === "string" ? val : fallback;
       return (v || fallback) as string;
     };
 
-    // Si no se pasan fechas, usar el día anterior (día cerrado)
-    const ayer = new Date();
-    ayer.setDate(ayer.getDate() - 1);
-    const defaultFecha = (ayer.toISOString().split("T")[0] || new Date().toISOString().split("T")[0]) as string;
+    // Calcular ayer (formato YYYY-MM-DD local/safe)
+    const now = new Date();
+    const ayer = new Date(now);
+    ayer.setDate(now.getDate() - 1);
+    // Usamos 'sv-SE' que devuelve formato ISO YYYY-MM-DD respetando la zona horaria local si se desea, 
+    // o simplemente split ISO si prefieres UTC. Aquí mantengo tu lógica ISO base pero asegurando string.
+    const defaultFecha = ayer.toISOString().split("T")[0]; 
 
-    const fechaInicioStr = normalizeQuery(fechaInicio, defaultFecha);
-    const fechaFinStr = normalizeQuery(fechaFin, fechaInicioStr || defaultFecha);
+    const fechaInicioStr = normalizeQuery(fechaInicio, defaultFecha as string);
+    const fechaFinStr = normalizeQuery(fechaFin, (fechaInicioStr || defaultFecha) as string);
 
     if (!fechaInicio || !fechaFin) {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`📅 No se pasaron fechas, usando día cerrado (ayer): ${fechaInicioStr}`);
+        console.log(`[Facturas] No se pasaron fechas, usando default: ${fechaInicioStr}`);
       }
     }
 
+    // Facturas service espera YYYY-MM-DD
     const resultado = await sincronizarFacturas(fechaInicioStr, fechaFinStr);
 
     res.status(200).json({
       ok: true,
-      message: "✅ Sincronización de facturas completada",
+      message: "Sincronización de facturas completada",
       data: resultado,
     });
   } catch (error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error("❌ Error al sincronizar facturas:", (error as Error).message);
-    }
+    console.error("Error al sincronizar facturas:", error);
     res.status(500).json({
       ok: false,
       error: "Error al sincronizar facturas",
@@ -53,6 +55,7 @@ export const syncFacturas = async (req: Request, res: Response): Promise<void> =
 /**
  * Endpoint para sincronizar recibos manualmente
  * GET/POST /api/recibos/sync?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD
+ * Nota: El servicio de Recibos requiere DD-MM-YYYY. Hacemos la conversión aquí.
  */
 export const syncRecibos = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -63,30 +66,43 @@ export const syncRecibos = async (req: Request, res: Response): Promise<void> =>
       return (v || fallback) as string;
     };
 
-    const ayer = new Date();
-    ayer.setDate(ayer.getDate() - 1);
-    const defaultFecha = (ayer.toISOString().split("T")[0] || new Date().toISOString().split("T")[0]) as string;
+    // Helper: Convierte YYYY-MM-DD (ISO) -> DD-MM-YYYY (Custom API)
+    const toCustomFormat = (isoDate: string) => {
+        if(!isoDate || !isoDate.includes('-')) return isoDate;
+        const [year, month, day] = isoDate.split('-');
+        // Si ya viene como DD-MM-YYYY (por error del usuario), devolverlo tal cual, sino invertir.
+        if (year?.length === 2 && day?.length === 4) return isoDate; 
+        return `${day}-${month}-${year}`;
+    };
 
-    const fechaInicioStr = normalizeQuery(fechaInicio, defaultFecha);
-    const fechaFinStr = normalizeQuery(fechaFin, fechaInicioStr || defaultFecha);
+    const now = new Date();
+    const ayer = new Date(now);
+    ayer.setDate(now.getDate() - 1);
+    const defaultFecha = ayer.toISOString().split("T")[0];
+
+    // Obtenemos fechas en formato ISO (YYYY-MM-DD) desde el query
+    const isoInicio = normalizeQuery(fechaInicio, defaultFecha as string);
+    const isoFin = normalizeQuery(fechaFin, (isoInicio || defaultFecha) as string);
 
     if (!fechaInicio || !fechaFin) {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`📅 No se pasaron fechas, usando día cerrado (ayer): ${fechaInicioStr}`);
+        console.log(`[Recibos] No se pasaron fechas, usando default: ${isoInicio}`);
       }
     }
 
-    const resultado = await sincronizarRecibos(fechaInicioStr, fechaFinStr);
+    // CONVERSIÓN: Pasamos de ISO a DD-MM-YYYY para el servicio
+    const recInicio = toCustomFormat(isoInicio);
+    const recFin = toCustomFormat(isoFin);
+
+    const resultado = await sincronizarRecibos(recInicio, recFin);
 
     res.status(200).json({
       ok: true,
-      message: "✅ Sincronización de recibos completada",
+      message: "Sincronización de recibos completada",
       data: resultado,
     });
   } catch (error) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error("❌ Error al sincronizar recibos:", (error as Error).message);
-    }
+    console.error("Error al sincronizar recibos:", error);
     res.status(500).json({
       ok: false,
       error: "Error al sincronizar recibos",
