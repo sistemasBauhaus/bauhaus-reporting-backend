@@ -43,13 +43,10 @@ interface SyncResult {
 export async function obtenerPosiciones(placa?: string, limit: number = 100): Promise<Position[]> {
   try {
     let url = `${API_BASE_URL}/positions?limit=${limit}`;
-    
     if (placa) {
       url += `&plate=${encodeURIComponent(placa)}`;
     }
-
     console.log(`🔍 Consultando API de posiciones: ${url}`);
-
     const response = await fetch(url, {
       method: "GET",
       headers: {
@@ -57,6 +54,7 @@ export async function obtenerPosiciones(placa?: string, limit: number = 100): Pr
         "Content-Type": "application/json",
       },
     });
+    console.log(`🌐 Respuesta status: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       console.error(`❌ Error en API de posiciones: ${response.status} ${response.statusText}`);
@@ -64,23 +62,19 @@ export async function obtenerPosiciones(placa?: string, limit: number = 100): Pr
     }
 
     const data = (await response.json()) as PositionResponse | Position[];
-
+    console.log('📦 Datos crudos recibidos:', JSON.stringify(data).slice(0, 500));
     // Manejar ambos formatos: array directo o objeto con {ok, data}
     let posiciones: Position[] = [];
-
     if (Array.isArray(data)) {
-      // Si es un array directo
       posiciones = data;
     } else if (data && data.ok && data.data && Array.isArray(data.data)) {
-      // Si es un objeto con estructura {ok, data}
       posiciones = data.data;
     }
-
+    console.log('📊 Posiciones procesadas:', posiciones.length);
     if (posiciones.length === 0) {
       console.warn("⚠️ API retornó data vacía");
       return [];
     }
-
     console.log(`✅ Se obtuvieron ${posiciones.length} posiciones`);
     return posiciones;
   } catch (error) {
@@ -105,22 +99,24 @@ export async function sincronizarPosiciones(placa?: string): Promise<SyncResult>
   try {
     // Obtener posiciones de la API
     const posiciones = await obtenerPosiciones(placa);
-
+    console.log('🔄 Posiciones a sincronizar:', posiciones.length);
     if (posiciones.length === 0) {
       console.log("ℹ️ No hay posiciones para sincronizar");
       return resultado;
     }
-
     resultado.total = posiciones.length;
-
     // Crear tabla si no existe
     await crearTablaPosiciones();
-
     // Sincronizar cada posición
     for (const pos of posiciones) {
       try {
         const fechaRegistro = parsearFechaAPI(pos.date);
-        
+        console.log('📝 Insertando/actualizando posición:', {
+          plate: pos.plate,
+          date: pos.date,
+          lat: pos.lat,
+          lng: pos.lng
+        });
         const query = `
           INSERT INTO positions (
             lat, lng, date, speed, direction, event_code, event,
@@ -145,7 +141,6 @@ export async function sincronizarPosiciones(placa?: string): Promise<SyncResult>
             driver_document = EXCLUDED.driver_document,
             updated_at = NOW();
         `;
-
         const values = [
           parseFloat(pos.lat),
           parseFloat(pos.lng),
@@ -162,14 +157,11 @@ export async function sincronizarPosiciones(placa?: string): Promise<SyncResult>
           pos.driver_name,
           pos.driver_document,
         ];
-
         const res = await pool.query(query, values);
-
         if (res.rowCount === 1) {
           // Verificar si fue INSERT o UPDATE
           const checkQuery = `SELECT COUNT(*) as count FROM positions WHERE plate = $1 AND date = $2`;
           const checkRes = await pool.query(checkQuery, [pos.plate, fechaRegistro]);
-          
           // Si hay más de 1, fue un UPDATE
           if (checkRes.rows[0]?.count > 1) {
             resultado.actualizados++;
@@ -270,12 +262,12 @@ function parsearFechaAPI(fechaStr: string): Date {
  */
 export async function obtenerUltimaPosicion(placa: string): Promise<Position | null> {
   try {
+    console.log(`🔎 Buscando última posición para placa: ${placa}`);
     const posiciones = await obtenerPosiciones(placa, 1);
-    
+    console.log('🔙 Resultado última posición:', posiciones);
     if (posiciones.length === 0) {
       return null;
     }
-
     return posiciones[0] || null;
   } catch (error) {
     console.error(`❌ Error al obtener última posición de ${placa}:`, (error as Error).message);
@@ -291,6 +283,7 @@ export async function obtenerUltimaPosicion(placa: string): Promise<Position | n
  */
 export async function obtenerHistorialPosiciones(placa: string, limit: number = 50): Promise<Position[]> {
   try {
+    console.log(`📚 Consultando historial de posiciones para placa: ${placa}, límite: ${limit}`);
     const query = `
       SELECT 
         lat, lng, date, speed, direction, event_code, event,
@@ -300,9 +293,8 @@ export async function obtenerHistorialPosiciones(placa: string, limit: number = 
       ORDER BY date DESC
       LIMIT $2
     `;
-
     const result = await pool.query(query, [placa, limit]);
-
+    console.log('📋 Resultados historial:', result.rows.length);
     return result.rows as Position[];
   } catch (error) {
     console.error(`❌ Error al obtener historial de ${placa}:`, (error as Error).message);
