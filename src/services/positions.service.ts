@@ -1,8 +1,12 @@
 // src/services/positions.service.ts
 import fetch from "node-fetch";
+import dotenv from "dotenv";
+dotenv.config();
 import { pool } from "../db/connection";
 
 const API_BASE_URL = process.env.API_BASE_URL_MAXTRACKER as string;
+console.log("[DEBUG] API_BASE_URL_MAXTRACKER:", process.env.API_BASE_URL_MAXTRACKER);
+console.log("[DEBUG] API_BEARER_TOKEN_MAXTRACKER:", process.env.API_BEARER_TOKEN_MAXTRACKER ? '[TOKEN PRESENTE]' : '[TOKEN VACÍO]');
 const API_BEARER_TOKEN = process.env.API_BEARER_TOKEN_MAXTRACKER as string;
 
 interface Position {
